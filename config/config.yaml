@@ -1,0 +1,13 @@
+# Node Name: pfl_controller
+pfl_controller:
+
+  ros__parameters:
+
+    # Admittance Parameters
+    admittance_mass: 10.00
+    admittance_damping: 1.00
+    admittance_stiffness: 0.00
+
+    # PFL Parameters
+    human_mass: 10.00
+    robot_mass: 10.00
