@@ -1,5 +1,7 @@
 #! /usr/bin/env python3
-import threading, numpy as np
+import numpy as np
+from termcolor import colored
+import threading, signal, time
 from scipy.spatial.transform import Rotation
 
 # Import ROS2 Libraries
@@ -14,6 +16,32 @@ from geometry_msgs.msg import Pose, Wrench
 
 # Import Utils Functions
 from move_robot import UR_RTDE_Move
+
+def signal_handler(sig, frame):
+
+    """ UR Stop Signal Handler """
+
+    # Initialize `rclpy` if not initialized
+    if not rclpy.ok(): rclpy.init()
+
+    # Create ROS2 Node + Publisher
+    ur_stop = rclpy.create_node('ur_stop_node', enable_rosout=False)
+    joint_group_vel_controller_publisher = ur_stop.create_publisher(Float64MultiArray, '/joint_group_vel_controller/command', 1)
+
+    # Create Stop Message
+    stop_msgs = Float64MultiArray(data=[0.0] * 6)
+    stop_msgs.layout.dim.append(MultiArrayDimension())
+    stop_msgs.layout.dim[0].size = 6
+    stop_msgs.layout.dim[0].stride = 1
+    stop_msgs.layout.dim[0].label = 'velocity'
+
+    # Publish Stop Message
+    joint_group_vel_controller_publisher.publish(stop_msgs)
+    ur_stop.get_logger().error('Stop Signal Received. Stopping UR...')
+
+    # Shutdown ROS
+    time.sleep(2)
+    rclpy.try_shutdown()
 
 class PFL_Controller(Node):
 
@@ -46,8 +74,10 @@ class PFL_Controller(Node):
         self.declare_parameter('admittance_stiffness',  [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])
         self.declare_parameter('maximum_velocity',      [1.05, 1.05, 1.57, 1.57, 1.57, 1.57])
         self.declare_parameter('maximum_acceleration',  [0.57, 0.57, 0.57, 0.57, 0.57, 0.57])
-        self.declare_parameter('robot',                 'ur10e')
         self.declare_parameter('use_feedback_velocity', True)
+        self.declare_parameter('complete_debug',        False)
+        self.declare_parameter('debug',                 False)
+        self.declare_parameter('robot',                 'ur10e')
 
         # Read Parameters
         self.human_mass            = self.get_parameter('human_mass').get_parameter_value().double_value
@@ -58,18 +88,23 @@ class PFL_Controller(Node):
         self.maximum_velocity      = self.get_parameter('maximum_velocity').get_parameter_value().double_array_value
         self.maximum_acceleration  = self.get_parameter('maximum_acceleration').get_parameter_value().double_array_value
         self.use_feedback_velocity = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
+        self.complete_debug        = self.get_parameter('complete_debug').get_parameter_value().bool_value
+        self.debug                 = self.get_parameter('debug').get_parameter_value().bool_value
         robot                      = self.get_parameter('robot').get_parameter_value().string_value
 
-        self.get_logger().info('PFL Controller Parameters:')
-        self.get_logger().info('human_mass:            ' + str(self.human_mass))
-        self.get_logger().info('robot_mass:            ' + str(self.robot_mass))
-        self.get_logger().info('admittance_mass:       ' + str(admittance_mass))
-        self.get_logger().info('admittance_damping:    ' + str(admittance_damping))
-        self.get_logger().info('admittance_stiffness:  ' + str(admittance_stiffness))
-        self.get_logger().info('maximum_velocity:      ' + str(self.maximum_velocity))
-        self.get_logger().info('maximum_acceleration:  ' + str(self.maximum_acceleration))
-        self.get_logger().info('use_feedback_velocity: ' + str(self.use_feedback_velocity))
-        self.get_logger().info('robot:                 ' + str(robot))
+        # Print Parameters
+        print(colored('\nPFL Controller Parameters:', 'yellow'), '\n')
+        print(colored('    human_mass:', 'green'),            f'\t\t{self.human_mass}')
+        print(colored('    robot_mass:', 'green'),            f'\t\t{self.robot_mass}')
+        print(colored('    admittance_mass:', 'green'),       f'\t\t{admittance_mass}')
+        print(colored('    admittance_damping:', 'green'),    f'\t{admittance_damping}')
+        print(colored('    admittance_stiffness:', 'green'),  f'\t{admittance_stiffness}')
+        print(colored('    maximum_velocity:', 'green'),      f'\t\t{self.maximum_velocity}')
+        print(colored('    maximum_acceleration:', 'green'),  f'\t{self.maximum_acceleration}')
+        print(colored('    use_feedback_velocity:', 'green'), f'\t{self.use_feedback_velocity}')
+        print(colored('    complete_debug:', 'green'),        f'\t\t{self.complete_debug}')
+        print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
+        print(colored('    robot:', 'green'),                 f'\t\t\t"{robot}"\n')
 
         # Publishers
         self.joint_velocity_publisher = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
@@ -95,7 +130,7 @@ class PFL_Controller(Node):
             self.compute_admittance_velocity(a)
             self.rate.sleep()
 
-        exit()
+        # exit()
 
     def jointStatesCallback(self, data:JointState):
 
@@ -206,8 +241,8 @@ class PFL_Controller(Node):
         assert x_des.shape == (4, 4), 'Desired Pose Must be a 4x4 Matrix'
         assert x_act.shape == (4, 4), 'Actual Pose Must be a 4x4 Matrix'
 
-        # print(f'x_des: {type(x_des)} \n {x_des}\n')
-        # print(f'x_act: {type(x_act)} \n {x_act}\n')
+        if self.complete_debug: print(f'x_des: {type(x_des)} \n {x_des}\n')
+        if self.complete_debug: print(f'x_act: {type(x_act)} \n {x_act}\n')
 
         # Compute Translation Error
         position_error = np.zeros((6,))
@@ -227,34 +262,35 @@ class PFL_Controller(Node):
         a = Pose()
         a.position.x, a.position.y, a.position.z = 0.2, 0.3, 0.4
         a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 0.1, 0.3, 0.4, 0.2
-        print()
+        if self.debug or self.complete_debug: print(colored('-'*100, 'yellow'), '\n')
 
         # FIX: get FK from Subscriber JointState()
         # Compute Position Error (x_des - x_act)
         # position_error = self.compute_position_error(self.pose2numpy(cartesian_goal), self.pose2numpy(self.robot.FK(self.joint_states.position)))
         position_error = self.compute_position_error(self.pose2numpy(cartesian_goal), self.pose2numpy(a))
-        # print(f'position_error: {type(position_error)} | {position_error.shape} \n {position_error}\n')
+        if self.complete_debug: print(f'position_error: {type(position_error)} | {position_error.shape} \n {position_error}\n')
+        elif self.debug: print(f'position_error: {position_error}\n')
 
         # Compute Manipulator Jacobian
         J = self.robot.Jacobian(self.joint_states.position)
-        # print(f'J: {type(J)} | {J.shape} \n {J}\n')
+        if self.complete_debug: print(f'J: {type(J)} | {J.shape} \n {J}\n')
 
         # Compute Cartesian Velocity
         x_dot: np.ndarray = np.matmul(J, self.joint_states.velocity) if self.use_feedback_velocity else self.x_dot_last_cycle
-        # print(f'x_dot: {type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
-
-        # print(f'M: {type(self.M)} \n {self.M}\n')
-        # print(f'D: {type(self.D)} \n {self.D}\n')
-        # print(f'K: {type(self.K)} \n {self.K}\n')
+        if self.complete_debug: print(f'x_dot: {type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
+        elif self.debug: print(f'x_dot:     {x_dot}')
 
         # Compute Acceleration with Admittance (Mx'' + Dx' + Kx = 0) (x = x_des - x_act) (x'_des, X''_des = 0) -> x_act'' = -M^-1 * (- Dx_act' + K(x_des - x_act))
         x_dot_dot: np.ndarray = np.matmul(np.linalg.inv(self.M), - np.matmul(self.D, x_dot) + np.matmul(self.K, position_error))
-        # print(f'x_dot_dot: {type(x_dot_dot)} | {x_dot_dot.shape} \n {x_dot_dot}\n')
+        if self.complete_debug: print(f'M: {type(self.M)} \n {self.M}\n\n', f'D: {type(self.D)} \n {self.D}\n\n', f'K: {type(self.K)} \n {self.K}\n')
+        if self.complete_debug: print(f'x_dot_dot: {type(x_dot_dot)} | {x_dot_dot.shape} \n {x_dot_dot}\n')
+        elif self.debug: print(f'x_dot_dot: {x_dot_dot}')
 
         # Integrate for Velocity Based Interface
         x_dot = x_dot + x_dot_dot * self.rate._timer.timer_period_ns * 1e-9
-        # print(f'new x_dot: {type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
-        # print(f'self.ros_rate: {self.rate._timer.timer_period_ns * 1e-9} | 1/self.ros_rate: {1/(self.rate._timer.timer_period_ns * 1e-9)}\n')
+        if self.complete_debug: print(f'self.ros_rate: {self.rate._timer.timer_period_ns * 1e-9} | 1/self.ros_rate: {1/(self.rate._timer.timer_period_ns * 1e-9)}\n')
+        if self.complete_debug: print(f'new x_dot: {type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
+        elif self.debug: print(f'new x_dot: {x_dot}\n')
 
         # PFL Safety Controller
         x_dot = self.PFL(self.joint_states, x_dot)
@@ -275,7 +311,8 @@ class PFL_Controller(Node):
         # Compute Joint Velocity (q_dot = J^-1 * x_dot)
         q_dot: np.ndarray = np.matmul(self.robot.JacobianInverse(self.joint_states.position), x_dot)
         assert q_dot.shape == (6,), f'Joint Velocity Must be a 6x1 Vector | Shape: {q_dot.shape}'
-        # print(f'q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
+        if self.complete_debug: print(f'q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
+        elif self.debug: print(f'q_dot: {q_dot}\n')
 
         # Limit Joint Velocity - Max Manipulator Joint Velocity
         q_dot = np.array([np.sign(vel) * max_vel if abs(vel) > max_vel else vel for vel, max_vel in zip(q_dot, self.maximum_velocity)])
@@ -285,7 +322,8 @@ class PFL_Controller(Node):
                  if abs(vel - joint_vel) > max_acc * self.rate._timer.timer_period_ns * 1e-9 else vel 
                  for vel, joint_vel, max_acc in zip(q_dot, self.joint_states.velocity, self.maximum_velocity)])
 
-        # print(f'Limiting V_Max -> q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
+        if self.complete_debug: print(f'Limiting V_Max -> q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
+        elif self.debug: print(f'Limiting V_Max -> q_dot: {q_dot}\n')
 
         return q_dot
 
@@ -300,7 +338,7 @@ class PFL_Controller(Node):
         """ Main Spinner """
 
         # While Goal Received but Not Reached
-        while (self.goal_received and not self.is_goal_reached(self.handover_cartesian_goal, self.joint_states)):
+        while (rclpy.ok() and self.goal_received and not self.is_goal_reached(self.handover_cartesian_goal, self.joint_states)):
 
             # Compute Joint Velocity
             joint_velocity = self.compute_admittance_velocity(self.handover_cartesian_goal)
@@ -317,6 +355,10 @@ if __name__ == '__main__':
 
     # Initialize Class
     pfl_controller = PFL_Controller('pfl_controller', 500)
+
+    # Register Signal Handler (CTRL+C)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # Main Spinner Function
     while rclpy.ok():

@@ -12,13 +12,15 @@ def create_pfl_controller_node(config:List[str]):
     # Python Node - Parameters
     pfl_controller_parameters = {
         'use_feedback_velocity': LaunchConfiguration('use_feedback_velocity'),
+        'complete_debug': LaunchConfiguration('complete_debug'),
+        'debug': LaunchConfiguration('debug'),
         'robot': LaunchConfiguration('robot'),
     }
 
     # Python Node + Parameters + YAML Config File
     pfl_controller = Node(
         package='pfl_controller', executable='pfl_controller.py', name='pfl_controller',
-        output='screen', emulate_tty=True, arguments=[('__log_level:=debug')],
+        output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
         parameters=[pfl_controller_parameters] + config,
     )
 
@@ -31,8 +33,12 @@ def generate_launch_description():
 
     # Arguments
     use_feedback_velocity_arg = DeclareLaunchArgument('use_feedback_velocity', default_value='true')
+    complete_debug_arg = DeclareLaunchArgument('complete_debug', default_value='false')
+    debug_arg = DeclareLaunchArgument('debug', default_value='false')
     robot_arg = DeclareLaunchArgument('robot', default_value='ur10e')
     launch_description.add_action(use_feedback_velocity_arg)
+    launch_description.add_action(complete_debug_arg)
+    launch_description.add_action(debug_arg)
     launch_description.add_action(robot_arg)
 
     # Config File Path

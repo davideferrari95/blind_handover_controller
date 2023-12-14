@@ -35,6 +35,9 @@ class UR_RTDE_Move(Node):
         self.robot = rtb.models.UR10() if robot_model.lower() in ['ur10','ur10e'] else rtb.models.UR5() if robot_model.lower() in ['ur5','ur5e'] else None
         if self.robot is None: raise Exception(f"Robot Model {robot_model} not supported")
 
+        # Initialize Jacobian (print)
+        self.Jacobian([0,0,0,0,0,0]); print()
+
         # Publishers
         self.ur10Pub      = self.create_publisher(JointState, '/desired_joint_pose', 1)
         self.jointPub     = self.create_publisher(JointTrajectoryPoint, '/ur_rtde/controllers/joint_space_controller/command', 1)
