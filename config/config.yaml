@@ -4,10 +4,15 @@ pfl_controller:
   ros__parameters:
 
     # Admittance Parameters
-    admittance_mass: 10.00
-    admittance_damping: 1.00
-    admittance_stiffness: 0.00
+    admittance_mass:      [4.00, 4.00, 4.00, 1.00, 1.00, 1.00]
+    admittance_damping:   [30.0, 30.0, 30.0, 10.0, 10.0, 10.0]
+    admittance_stiffness: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
 
     # PFL Parameters
     human_mass: 10.00
     robot_mass: 10.00
+
+    # Kinematic Parameters
+    maximum_velocity: [1.05, 1.05, 1.57, 1.57, 1.57, 1.57]
+    # maximum_acceleration: [0.57, 0.57, 0.57, 0.57, 0.57, 0.57]
+    maximum_acceleration: [0.20, 0.20, 0.20, 0.20, 0.20, 0.20]
