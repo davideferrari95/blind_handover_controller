@@ -26,7 +26,7 @@ def signal_handler(sig, frame):
 
     # Create ROS2 Node + Publisher
     ur_stop = rclpy.create_node('ur_stop_node', enable_rosout=False)
-    joint_group_vel_controller_publisher = ur_stop.create_publisher(Float64MultiArray, '/joint_group_vel_controller/command', 1)
+    joint_group_vel_controller_publisher = ur_stop.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
 
     # Create Stop Message
     stop_msgs = Float64MultiArray(data=[0.0] * 6)
