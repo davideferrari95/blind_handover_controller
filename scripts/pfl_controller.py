@@ -15,7 +15,7 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
 
 # Import Utils Functions
-from move_robot import UR_RTDE_Move
+from move_robot import UR_RTDE_Move, Trajectory
 
 def signal_handler(sig, frame):
 
@@ -51,8 +51,11 @@ class PFL_Controller(Node):
     trajectory_executed, goal_received = False, False
     handover_cartesian_goal, joint_states = Pose(), JointState()
     joint_states, ft_sensor_data = JointState(), Wrench()
-    joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     x_dot_last_cycle = np.zeros((6, ), dtype=np.float64)
+
+    # FIX: Initialize Joint States
+    joint_states.position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     def __init__(self, node_name, ros_rate):
 
@@ -125,12 +128,23 @@ class PFL_Controller(Node):
         a.position.x, a.position.y, a.position.z = 1.0, 1.5, 1.0
         a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 0.1, 0.2, 0.3, 0.4
 
-        for _ in range(10):
+        trajectory = self.robot.plan_trajectory(self.joint_states.position, [2.0, 3.0, 1.0, 1.0, 1.0, 0.5], 20, 2000)
+        print (trajectory, '\n\n')
+        print (colored('Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
+        print (colored('Trajectory Velocities:', 'green'),    f'\n\n {trajectory.qd}\n')
+        print (colored('Trajectory Accelerations:', 'green'), f'\n\n {trajectory.qdd}\n')
 
-            self.compute_admittance_velocity(a)
+        trajectory = self.robot.plan_cartesian_trajectory(Pose(), a, 20, 2000)
+        print (trajectory, '\n\n')
+        print (colored('Cartesian Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
+        print (colored('Cartesian Trajectory Velocities:', 'green'),    f'\n\n {trajectory.qd}\n')
+        print (colored('Cartesian Trajectory Accelerations:', 'green'), f'\n\n {trajectory.qdd}\n')
+
+        for pos, vel, acc in zip (trajectory.q, trajectory.qd, trajectory.qdd):
+            self.compute_admittance_velocity(pos, vel, acc)
             self.rate.sleep()
 
-        # exit()
+        exit()
 
     def jointStatesCallback(self, data:JointState):
 
@@ -223,9 +237,9 @@ class PFL_Controller(Node):
 
         return False
 
-    def pose2numpy(self, pose:Pose) -> np.ndarray:
+    def pose2matrix(self, pose:Pose) -> np.ndarray:
 
-        """ Convert Pose to Eigen """
+        """ Convert Pose to Numpy Transformation Matrix """
 
         # Convert Pose to Rotation Matrix and Translation Vector -> Create Transformation Matrix
         transformation_matrix = np.eye(4)
@@ -249,7 +263,7 @@ class PFL_Controller(Node):
         position_error[:3] = x_des[:3, 3] - x_act[:3, 3]
 
         # Compute Orientation Error
-        orientation_error = Rotation.from_matrix(x_des[:3, :3]).inv() * Rotation.from_matrix(x_act[:3, :3])
+        orientation_error:Rotation = Rotation.from_matrix(x_des[:3, :3]).inv() * Rotation.from_matrix(x_act[:3, :3])
         position_error[3:] = orientation_error.as_rotvec()
 
         return position_error.transpose()
@@ -267,7 +281,7 @@ class PFL_Controller(Node):
         # FIX: get FK from Subscriber JointState()
         # Compute Position Error (x_des - x_act)
         # position_error = self.compute_position_error(self.pose2numpy(cartesian_goal), self.pose2numpy(self.robot.FK(self.joint_states.position)))
-        position_error = self.compute_position_error(self.pose2numpy(cartesian_goal), self.pose2numpy(a))
+        position_error = self.compute_position_error(self.pose2matrix(cartesian_goal), self.pose2matrix(a))
         if self.complete_debug: print(f'position_error: {type(position_error)} | {position_error.shape} \n {position_error}\n')
         elif self.debug: print(f'position_error: {position_error}\n')
 
@@ -336,6 +350,12 @@ class PFL_Controller(Node):
     def spinner(self):
 
         """ Main Spinner """
+
+        # If Goal Received -> Plan Trajectory
+        if self.goal_received:
+
+            trajectory = self.robot.plan_trajectory(self.joint_states.position, self.robot.IK(self.handover_cartesian_goal), 20, 2000)
+            cartesian_trajectory = self.robot.joint2cartesianTrajectory(trajectory)
 
         # While Goal Received but Not Reached
         while (rclpy.ok() and self.goal_received and not self.is_goal_reached(self.handover_cartesian_goal, self.joint_states)):
