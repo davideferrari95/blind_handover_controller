@@ -2,11 +2,16 @@
 
 import rclpy
 from rclpy.node import Node
+from typing import Union, List
 from builtin_interfaces.msg import Duration
-from typing import List
+from scipy.spatial.transform import Rotation
 
 import roboticstoolbox as rtb, numpy as np
+from roboticstoolbox.robot.IK import IKSolution
 from roboticstoolbox.tools.types import ArrayLike, NDArray
+from roboticstoolbox.tools.trajectory import Trajectory, jtraj, ctraj
+from spatialmath import SE3, SO3
+from spatialmath.base.transforms3d import tr2rt, rt2tr
 
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Pose
@@ -136,6 +141,8 @@ class UR_RTDE_Move(Node):
 
     def FK(self, joint_positions:List[float]) -> Pose:
 
+        """ Forward Kinematics Using UR_RTDE Drivers """
+
         # Set Forward Kinematic Request
         req = GetForwardKinematic.Request()
         req.joint_position = joint_positions
@@ -151,6 +158,8 @@ class UR_RTDE_Move(Node):
         return res.tcp_position
 
     def IK(self, pose:Pose, near_pose:List[float]=None) -> List[float]:
+
+        """ Inverse Kinematics Using UR_RTDE Drivers """
 
         # Set Inverse Kinematic Request
         req = GetInverseKinematic.Request()
@@ -168,6 +177,18 @@ class UR_RTDE_Move(Node):
         res:GetInverseKinematic.Response = future.result()
 
         return list(res.joint_position)
+
+    def ForwardKinematic(self, joint_positions:ArrayLike) -> SE3:
+
+        """ Forward Kinematics Using Peter Corke Robotics Toolbox """
+
+        return self.robot.fkine(joint_positions)
+
+    def InverseKinematic(self, pose:Pose) -> IKSolution:
+
+        """ Inverse Kinematics Using Peter Corke Robotics Toolbox """
+
+        return self.robot.ikine_NR(pose)
 
     def Jacobian(self, joint_positions:ArrayLike) -> np.ndarray:
 
@@ -226,3 +247,85 @@ class UR_RTDE_Move(Node):
         res:Trigger.Response = future.result()
 
         return True
+
+    def plan_trajectory(self, start_joint_positions:List[float], end_joint_positions:List[float], duration:float=10.0, steps:int=1000) -> Trajectory:
+
+        """ Plan Trajectory with Peter Corke Robotics Toolbox """
+
+        # Type Assertion
+        assert type(steps) is int, f"Steps must be an Integer | {type(steps)} given"
+        assert type(duration) in [int, float], f"Duration must be a Int or Float | {type(duration)} given"
+
+        # Assertion
+        assert len(start_joint_positions) == 6, f"Start Joint Positions Length must be 6 | {len(start_joint_positions)} given"
+        assert len(end_joint_positions) == 6, f"End Joint Positions Length must be 6 | {len(end_joint_positions)} given"
+        assert duration > 0, f"Duration must be greater than 0 | {duration} given"
+        assert steps > 0, f"Steps must be greater than 0 | {steps} given"
+
+        # Create Time Vector
+        time_vector = np.linspace(0, duration, steps)
+
+        # Return Trajectory
+        return jtraj(np.array(start_joint_positions), np.array(end_joint_positions), time_vector)
+
+    # def plan_cartesian_trajectory(self, start_pose:Union[List[float], Pose], end_pose:Union[List[float], Pose], duration:float=10.0, steps:int=1000) -> Trajectory:
+    def plan_cartesian_trajectory(self, start_pose:Pose, end_pose:Pose, duration:float=10.0, steps:int=1000) -> Trajectory:
+
+        """ Plan Cartesian Trajectory with Peter Corke Robotics Toolbox """
+
+        # Type Assertion
+        assert type(steps) is int, f"Steps must be an Integer | {type(steps)} given"
+        assert type(duration) in [int, float], f"Duration must be a Int or Float | {type(duration)} given"
+
+        # Convert Geometry Pose to SE3 Matrix
+        if type(start_pose) is Pose: start_pose = self.pose2matrix(start_pose)
+        if type(end_pose)   is Pose: end_pose   = self.pose2matrix(end_pose)
+
+        # Assertion
+        # assert len(start_pose) == 6, f"Start Joint Positions Length must be 6 | {len(start_pose)} given"
+        # assert len(end_pose) == 6, f"End Joint Positions Length must be 6 | {len(end_pose)} given"
+        assert duration > 0, f"Duration must be greater than 0 | {duration} given"
+        assert steps > 0, f"Steps must be greater than 0 | {steps} given"
+
+        # Create Time Vector
+        time_vector = np.linspace(0, duration, steps)
+
+        # Return Trajectory
+        traj = ctraj(start_pose, end_pose, time_vector)
+        print(type(traj))
+        print(traj)
+
+        while(rclpy.ok()):pass
+        # return ctraj(start_pose, end_pose, time_vector)
+
+    def pose2numpy(self, pose:Pose) -> np.ndarray:
+
+        """ Convert Pose to Numpy Array """
+
+        # Type Assertion
+        assert type(pose) is Pose, f"Pose must be a Pose | {type(pose)} given | {pose}"
+
+        # Convert Position to Numpy Array
+        numpy_pose = np.zeros((6,))
+        numpy_pose[:3] = [pose.position.x, pose.position.y, pose.position.z]
+
+        # Convert Orientation to Numpy Array
+        orientation:Rotation = Rotation.from_quat([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
+        numpy_pose[3:] = orientation.as_rotvec()
+
+        return numpy_pose
+
+    def pose2matrix(self, pose:Pose) -> SE3:
+
+        """ Convert Pose to SE3 Transformation Matrix """
+
+        # Type Assertion
+        assert type(pose) is Pose, f"Pose must be a Pose | {type(pose)} given | {pose}"
+
+        # Convert Pose to Rotation Matrix and Translation Vector -> Create Transformation Matrix
+        transformation_matrix = np.eye(4)
+        transformation_matrix[:3, :3] = Rotation.from_quat([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]).as_matrix()
+        transformation_matrix[:3, 3] = np.array([pose.position.x, pose.position.y, pose.position.z])
+
+        assert transformation_matrix.shape == (4, 4), f'Transformation must a 4x4 Matrix | {transformation_matrix.shape} obtained'
+        return SE3(transformation_matrix)
