@@ -82,6 +82,7 @@ class Handover_Controller(Node):
         self.declare_parameter('use_feedback_velocity', True)
         self.declare_parameter('complete_debug',        False)
         self.declare_parameter('debug',                 False)
+        self.declare_parameter('sim',                   False)
         self.declare_parameter('robot',                 'ur10e')
 
         # Read Parameters
@@ -95,6 +96,7 @@ class Handover_Controller(Node):
         use_feedback_velocity = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
         self.complete_debug   = self.get_parameter('complete_debug').get_parameter_value().bool_value
         self.debug            = self.get_parameter('debug').get_parameter_value().bool_value
+        self.sim              = self.get_parameter('sim').get_parameter_value().bool_value
         robot                 = self.get_parameter('robot').get_parameter_value().string_value
 
         # Print Parameters
@@ -109,10 +111,12 @@ class Handover_Controller(Node):
         print(colored('    use_feedback_velocity:', 'green'), f'\t{use_feedback_velocity}')
         print(colored('    complete_debug:', 'green'),        f'\t\t{self.complete_debug}')
         print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
+        print(colored('    sim:', 'green'),                   f'\t\t\t{self.sim}')
         print(colored('    robot:', 'green'),                 f'\t\t\t"{robot}"\n')
 
         # Publishers
-        self.joint_velocity_publisher = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
+        self.joint_velocity_publisher   = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
+        if self.sim: self.joint_simulation_publisher = self.create_publisher(JointState, '/joint_states', 1)
 
         # Subscribers
         self.joint_state_subscriber    = self.create_subscription(JointState, '/joint_states',                self.jointStatesCallback, 1)
@@ -138,6 +142,10 @@ class Handover_Controller(Node):
 
         # Initialize PFL Controller
         self.pfl_controller = PowerForceLimitingController(self.rate, human_mass, robot_mass, self.complete_debug, self.debug)
+
+        # Initialize Simulation Joint States
+        time.sleep(1)
+        if self.sim: self.publishSimulationJointStates([0.0, -pi/2, pi/2, -pi/2, -pi/2, 0.0])
 
         self.test()
 
@@ -215,6 +223,7 @@ class Handover_Controller(Node):
 
             # FIX: Compute Joint States Position
             self.joint_states.position = [self.joint_states.position[i] + joint_velocity[i] * self.rate._timer.timer_period_ns * 1e-9 for i in range(len(self.joint_states.position))]
+            self.publishSimulationJointStates(self.joint_states.position, joint_velocity.tolist())
 
         print(colored('\nAdmittance Controller Completed\n', 'green'))
 
@@ -264,6 +273,22 @@ class Handover_Controller(Node):
 
         # Publish Message
         if rclpy.ok(): self.joint_velocity_publisher.publish(msg)
+
+    def publishSimulationJointStates(self, pos:List[float], vel:List[float]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], eff:List[float]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]):
+
+        """ Publish Simulation Joint States """
+
+        # Type Assertions
+        assert len(pos) == 6 and len(vel) == 6 and len(eff) == 6, 'Position, Velocity and Effort Vectors Must Have 6 Elements'
+
+        # ROS Message Creation
+        joint = JointState()
+        joint.header.stamp = self.get_clock().now().to_msg()
+        joint.name = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+        joint.position, joint.velocity, joint.effort = pos, vel, eff
+
+        # Publish Joint States
+        if rclpy.ok(): self.joint_simulation_publisher.publish(joint)
 
     def is_goal_reached(self, goal:Pose, joint_states:JointState):
 

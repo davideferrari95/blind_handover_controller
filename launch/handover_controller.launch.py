@@ -14,6 +14,7 @@ def create_handover_controller_node(config:List[str]):
         'use_feedback_velocity': LaunchConfiguration('use_feedback_velocity'),
         'complete_debug': LaunchConfiguration('complete_debug'),
         'debug': LaunchConfiguration('debug'),
+        'sim': LaunchConfiguration('sim'),
         'robot': LaunchConfiguration('robot'),
     }
 
@@ -36,10 +37,12 @@ def generate_launch_description():
     complete_debug_arg = DeclareLaunchArgument('complete_debug', default_value='false')
     debug_arg = DeclareLaunchArgument('debug', default_value='false')
     robot_arg = DeclareLaunchArgument('robot', default_value='ur10e')
+    sim_arg = DeclareLaunchArgument('sim', default_value='false')
     launch_description.add_action(use_feedback_velocity_arg)
     launch_description.add_action(complete_debug_arg)
     launch_description.add_action(debug_arg)
     launch_description.add_action(robot_arg)
+    launch_description.add_action(sim_arg)
 
     # Config File Path
     config = os.path.join(get_package_share_directory('handover_controller'), 'config','config.yaml')
