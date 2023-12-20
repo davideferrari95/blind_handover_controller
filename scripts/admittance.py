@@ -64,7 +64,7 @@ class AdmittanceController():
         elif self.debug: print(f'x_dot:     {x_dot}')
 
         # Compute Acceleration Admittance (Mx'' + Dx' + Kx = Fe) (x = x_des - x_act) (x'' = x_des'' - u) -> u = M^-1 * (D (x_act' - x_des') + K (x_act - x_des) - Fe) + x_des'')
-        x_ddot: np.ndarray = np.linalg.inv(self.M) @ (self.D @ (x_dot - x_des_dot) + self.K @ (x_des - x) - self.compute_external_forces(external_force)) + x_des_ddot
+        x_ddot: np.ndarray = np.linalg.inv(self.M) @ (self.D @ (x_dot - x_des_dot) + self.K @ (x_des - x) - self.get_external_forces(external_force)) + x_des_ddot
         if self.complete_debug: print(f'M: {type(self.M)} \n {self.M}\n\n', f'D: {type(self.D)} \n {self.D}\n\n', f'K: {type(self.K)} \n {self.K}\n')
         if self.complete_debug: print(f'x_dot_dot: {type(x_ddot)} | {x_ddot.shape} \n {x_ddot}\n')
         elif self.debug: print(f'x_dot_dot: {x_ddot}')
@@ -85,6 +85,17 @@ class AdmittanceController():
         self.x_dot_last_cycle = new_x_dot
 
         return q_dot
+
+    def get_external_forces(self, external_forces:Wrench) -> np.ndarray:
+
+        """ Get FT Sensor External Forces """
+
+        # Compute External Forces
+        Fe = np.zeros((6, ), dtype=np.float64)
+        Fe[:3] = np.array([external_forces.force.x, external_forces.force.y, external_forces.force.z])
+        Fe[3:] = np.array([external_forces.torque.x, external_forces.torque.y, external_forces.torque.z])
+
+        return Fe
 
     def joint2cartesian_states(self, joint_states:JointState) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
