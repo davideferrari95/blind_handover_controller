@@ -197,7 +197,7 @@ class UR_Toolbox():
 
     def pose2array(self, pose:Pose) -> np.ndarray:
 
-        """ Convert Pose to Numpy Array """
+        """ Convert Pose to Numpy Array (6x1) """
 
         # Type Assertion
         assert type(pose) is Pose, f"Pose must be a Pose | {type(pose)} given | {pose}"
@@ -246,7 +246,7 @@ class UR_Toolbox():
 
     def matrix2array(self, matrix:SE3) -> np.ndarray:
 
-        """ Convert SE3 Transformation Matrix to NumPy Array """
+        """ Convert SE3 Transformation Matrix to NumPy Array (6x1) """
 
         # Type Assertion
         assert type(matrix) is SE3, f"Matrix must be a SE3 | {type(matrix)} given | {matrix}"
@@ -263,7 +263,7 @@ class UR_Toolbox():
 
     def matrix2numpy(self, matrix:SE3) -> np.ndarray:
 
-        """ Convert SE3 Transformation Matrix to NumPy 4x4 Matrix """
+        """ Convert SE3 Transformation Matrix to NumPy Matrix (4x4) """
 
         # Type Assertion
         assert type(matrix) is SE3, f"Matrix must be a SE3 | {type(matrix)} given | {matrix}"
