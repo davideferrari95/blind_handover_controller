@@ -58,16 +58,13 @@ class Handover_Controller(Node):
     handover_cartesian_goal, joint_states = Pose(), JointState()
     joint_states, ft_sensor_data = JointState(), Wrench()
 
-    # FIX: Initialize Joint States
-    joint_states.position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-
     def __init__(self, node_name, ros_rate):
 
         # Node Initialization
         super().__init__(node_name)
 
         # ROS2 Rate
+        self.ros_rate = ros_rate
         self.rate = self.create_rate(ros_rate)
 
         # Spin in a separate thread - for ROS2 Rate
@@ -148,21 +145,29 @@ class Handover_Controller(Node):
 
         """ Test Function """
 
+        from rclpy.parameter import Parameter
+
+        self.declare_parameter('pause_execution', True)
+
         # a = Pose()
         # a.position.x, a.position.y, a.position.z = 0.2, 0.3, 0.4
         # a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 1.0, 0.0, 0.0, 0.0
         # a = self.robot_toolbox.pose2matrix(a)
 
-        a = [0, -pi/2, pi/4, -pi/4, -pi/2, 0]
-        b = [0, -pi/2, pi/2, -pi/2, -pi/2, 0]
+        a = [0.0, -pi/2, pi/4, -pi/4, -pi/2, 0.0]
+        b = [0.0, -pi/2, pi/2, -pi/2, -pi/2, 0.0]
         # a = [0.6857, -1.703, 2.607, 2.238, -2.256, 0]
         print(a, '\n')
         # self.robot_toolbox.plot(a)
         # self.robot_toolbox.plot(b)
 
+        # FIX: Initialize Joint States
+        self.joint_states.position = a
+        self.joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
         a = self.robot_toolbox.ForwardKinematic(a)
         print(a)
-        # print(b)
+        print(self.robot_toolbox.ForwardKinematic(b))
 
         # a = self.robot_toolbox.matrix2pose(self.robot_toolbox.ForwardKinematic([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
         # b = self.robot_toolbox.matrix2pose(self.robot_toolbox.ForwardKinematic([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
@@ -180,7 +185,11 @@ class Handover_Controller(Node):
 
         # exit()
 
-        trajectory = self.robot_toolbox.plan_trajectory(a, b, 20, 2000)
+        while rclpy.ok() and self.get_parameter('pause_execution').get_parameter_value().bool_value:
+            self.get_logger().info('Pausing execution...', once=True)
+        self.set_parameters([Parameter('pause_execution', Parameter.Type.BOOL, True)])
+
+        trajectory = self.robot_toolbox.plan_trajectory(a, b, 10, self.ros_rate)
         print (trajectory, '\n\n')
         print (colored('Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
         print (colored('Trajectory Velocities:', 'green'),    f'\n\n {trajectory.qd}\n')
@@ -189,11 +198,27 @@ class Handover_Controller(Node):
         # Convert Joint Trajectory to Cartesian Trajectory
         cartesian_trajectory = self.robot_toolbox.joint2cartesianTrajectory(trajectory)
 
-        exit()
+        # exit()
+        while rclpy.ok() and self.get_parameter('pause_execution').get_parameter_value().bool_value:
+            self.get_logger().info('Pausing execution...', once=True)
+        self.set_parameters([Parameter('pause_execution', Parameter.Type.BOOL, True)])
 
-        for pos, vel, acc in zip (trajectory.q, trajectory.qd, trajectory.qdd):
-            self.compute_admittance_velocity(pos, vel, acc)
+
+        for i in range(cartesian_trajectory[0].shape[0]):
+
+            # if not rclpy.ok(): break
+
+            cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
+            joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, *cartesian_goal)
+
             self.rate.sleep()
+
+            # FIX: Compute Joint States Position
+            self.joint_states.position = [self.joint_states.position[i] + joint_velocity[i] * self.rate._timer.timer_period_ns * 1e-9 for i in range(len(self.joint_states.position))]
+
+        print(colored('\nAdmittance Controller Completed\n', 'green'))
+
+        exit()
 
     def jointStatesCallback(self, data:JointState):
 

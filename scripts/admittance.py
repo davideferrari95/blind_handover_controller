@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Tuple
+from termcolor import colored
 
 from rclpy.node import Rate
 from geometry_msgs.msg import Wrench
@@ -51,29 +52,29 @@ class AdmittanceController():
 
         # Compute Manipulator Jacobian
         J = self.robot.Jacobian(joint_states.position)
-        if self.complete_debug: print(f'J: {type(J)} | {J.shape} \n {J}\n')
+        if self.complete_debug: print(colored('J: ', 'green'), f'{type(J)} | {J.shape} \n {J}\n')
 
         # Compute Cartesian Position
         x = self.robot.matrix2array(self.robot.ForwardKinematic(np.array(joint_states.position)))
-        if self.complete_debug: print(f'x: {type(x)} | {x.shape} \n {x}\n')
-        elif self.debug: print(f'x:         {x}')
+        if self.complete_debug: print(colored('x: ', 'green'), f'{type(x)} | {x.shape} \n {x}\n')
+        elif self.debug: print(colored('x:         ', 'green'), f'{x}')
 
         # Compute Cartesian Velocity
         x_dot: np.ndarray = J @ np.array(joint_states.velocity) if self.use_feedback_velocity else self.x_dot_last_cycle
-        if self.complete_debug: print(f'x_dot: {type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
-        elif self.debug: print(f'x_dot:     {x_dot}')
+        if self.complete_debug: print(colored('x_dot: ', 'green'), f'{type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
+        elif self.debug: print(colored('x_dot:     ', 'green'), f'{x_dot}')
 
         # Compute Acceleration Admittance (Mx'' + Dx' + Kx = Fe) (x = x_des - x_act) (x'' = x_des'' - u) -> u = M^-1 * (D (x_act' - x_des') + K (x_act - x_des) - Fe) + x_des'')
         x_ddot: np.ndarray = np.linalg.inv(self.M) @ (self.D @ (x_dot - x_des_dot) + self.K @ (x_des - x) - self.get_external_forces(external_force)) + x_des_ddot
-        if self.complete_debug: print(f'M: {type(self.M)} \n {self.M}\n\n', f'D: {type(self.D)} \n {self.D}\n\n', f'K: {type(self.K)} \n {self.K}\n')
-        if self.complete_debug: print(f'x_dot_dot: {type(x_ddot)} | {x_ddot.shape} \n {x_ddot}\n')
-        elif self.debug: print(f'x_dot_dot: {x_ddot}')
+        if self.complete_debug: print(colored('M: ', 'green'), f'{type(self.M)} \n {self.M}\n\n', colored('D: ', 'green'), f'{type(self.D)} \n {self.D}\n\n', colored('K: ', 'green'), f'{type(self.K)} \n {self.K}\n')
+        if self.complete_debug: print(colored('x_dot_dot: ', 'green'), f'{type(x_ddot)} | {x_ddot.shape} \n {x_ddot}\n')
+        elif self.debug: print(colored('x_dot_dot: ', 'green'), f'{x_ddot}')
 
         # Integrate for Velocity Based Interface
         new_x_dot = x_dot + x_ddot * self.rate._timer.timer_period_ns * 1e-9
-        if self.complete_debug: print(f'self.ros_rate: {self.rate._timer.timer_period_ns * 1e-9} | 1/self.ros_rate: {1/(self.rate._timer.timer_period_ns * 1e-9)}\n')
-        if self.complete_debug: print(f'new x_dot: {type(new_x_dot)} | {new_x_dot.shape} \n {new_x_dot}\n')
-        elif self.debug: print(f'new x_dot: {new_x_dot}\n')
+        if self.complete_debug: print(colored('ros_rate: ', 'green'), f'{self.rate._timer.timer_period_ns * 1e-9} | ',colored('1/ros_rate: ', 'green'), f'{1/(self.rate._timer.timer_period_ns * 1e-9)}\n')
+        if self.complete_debug: print(colored('new x_dot: ', 'green'), f'{type(new_x_dot)} | {new_x_dot.shape} \n {new_x_dot}\n')
+        elif self.debug: print(colored('new x_dot: ', 'green'), f'{new_x_dot}\n')
 
         # Compute Joint Velocity (q_dot = J^-1 * new_x_dot)
         q_dot: np.ndarray = self.robot.JacobianInverse(joint_states.position) @ new_x_dot

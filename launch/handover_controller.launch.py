@@ -7,7 +7,7 @@ from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
-def create_pfl_controller_node(config:List[str]):
+def create_handover_controller_node(config:List[str]):
 
     # Python Node - Parameters
     handover_controller_parameters = {
@@ -45,7 +45,7 @@ def generate_launch_description():
     config = os.path.join(get_package_share_directory('handover_controller'), 'config','config.yaml')
 
     # Launch Description - Add Nodes
-    launch_description.add_action(create_pfl_controller_node([config]))
+    launch_description.add_action(create_handover_controller_node([config]))
 
     # Return Launch Description
     return launch_description

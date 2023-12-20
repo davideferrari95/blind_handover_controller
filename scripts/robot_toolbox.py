@@ -114,12 +114,12 @@ class UR_Toolbox():
         # # Uncomment to stop the browser tab from closing
         # # env.hold()
 
-    def plan_trajectory(self, start:Union[List[float], Pose, SE3], end:Union[List[float], Pose, SE3], duration:float=10.0, steps:int=1000) -> Trajectory:
+    def plan_trajectory(self, start:Union[List[float], Pose, SE3], end:Union[List[float], Pose, SE3], duration:float=10.0, sampling_freq:int=500) -> Trajectory:
 
         """ Plan Trajectory with Peter Corke Robotics Toolbox """
 
         # Type Assertion
-        assert type(steps) is int, f"Steps must be an Integer | {type(steps)} given"
+        assert type(sampling_freq) is int, f"Sampling Frequency must be an Integer | {type(sampling_freq)} given"
         assert type(duration) in [int, float], f"Duration must be a Int or Float | {type(duration)} given"
 
         # Convert Geometry Pose, SE3 Matrix to Joint Position Array
@@ -130,10 +130,10 @@ class UR_Toolbox():
         assert len(start_joint_pos) == 6, f"Start Joint Positions Length must be 6 | {len(start_joint_pos)} given"
         assert len(end_joint_pos) == 6, f"End Joint Positions Length must be 6 | {len(end_joint_pos)} given"
         assert duration > 0, f"Duration must be greater than 0 | {duration} given"
-        assert steps > 0, f"Steps must be greater than 0 | {steps} given"
+        assert sampling_freq > 0, f"Sampling Frequency must be greater than 0 | {sampling_freq} given"
 
-        # Create Time Vector
-        time_vector = np.linspace(0, duration, steps)
+        # Create Time Vector (steps = duration * sampling_freq)
+        time_vector = np.linspace(0, duration, duration * sampling_freq)
 
         # Return Trajectory
         return jtraj(np.array(start_joint_pos), np.array(end_joint_pos), time_vector)
