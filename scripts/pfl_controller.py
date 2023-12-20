@@ -1,21 +1,23 @@
 #! /usr/bin/env python3
+
 import numpy as np
+from math import pi
+from typing import List
 from termcolor import colored
 import threading, signal, time
-from scipy.spatial.transform import Rotation
 
 # Import ROS2 Libraries
 import rclpy
 from rclpy.node import Node
-from typing import List
 
 # Import ROS Messages, Services, Actions
 from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
 
-# Import Utils Functions
-from move_robot import UR_RTDE_Move, Trajectory
+# Import Robot and Admittance Controller Classes
+from move_robot import UR_RTDE_Move
+from admittance import AdmittanceController
 
 def signal_handler(sig, frame):
 
@@ -90,7 +92,7 @@ class PFL_Controller(Node):
         admittance_stiffness       = self.get_parameter('admittance_stiffness').get_parameter_value().double_array_value
         self.maximum_velocity      = self.get_parameter('maximum_velocity').get_parameter_value().double_array_value
         self.maximum_acceleration  = self.get_parameter('maximum_acceleration').get_parameter_value().double_array_value
-        self.use_feedback_velocity = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
+        use_feedback_velocity      = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
         self.complete_debug        = self.get_parameter('complete_debug').get_parameter_value().bool_value
         self.debug                 = self.get_parameter('debug').get_parameter_value().bool_value
         robot                      = self.get_parameter('robot').get_parameter_value().string_value
@@ -104,7 +106,7 @@ class PFL_Controller(Node):
         print(colored('    admittance_stiffness:', 'green'),  f'\t{admittance_stiffness}')
         print(colored('    maximum_velocity:', 'green'),      f'\t\t{self.maximum_velocity}')
         print(colored('    maximum_acceleration:', 'green'),  f'\t{self.maximum_acceleration}')
-        print(colored('    use_feedback_velocity:', 'green'), f'\t{self.use_feedback_velocity}')
+        print(colored('    use_feedback_velocity:', 'green'), f'\t{use_feedback_velocity}')
         print(colored('    complete_debug:', 'green'),        f'\t\t{self.complete_debug}')
         print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
         print(colored('    robot:', 'green'),                 f'\t\t\t"{robot}"\n')
@@ -121,30 +123,62 @@ class PFL_Controller(Node):
         # Initialize Robot
         self.robot = UR_RTDE_Move(robot_model=robot)
 
-        # Create Mass, Damping and Stiffness Matrices
-        self.M, self.D, self.K = admittance_mass * np.eye(6), admittance_damping * np.eye(6), admittance_stiffness * np.eye(6)
+        # Initialize Admittance Controller
+        self.admittance_controller = AdmittanceController(
+            self.robot, self.rate,
+            M = admittance_mass * np.eye(6),
+            D = admittance_damping * np.eye(6),
+            K = admittance_stiffness * np.eye(6),
+            use_feedback_velocity = use_feedback_velocity,
+            complete_debug = self.complete_debug, debug = self.debug
+        )
 
-        a = Pose()
-        a.position.x, a.position.y, a.position.z = 1.0, 1.5, 1.0
-        a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 0.1, 0.2, 0.3, 0.4
+        self.test()
 
-        trajectory = self.robot.plan_trajectory(self.joint_states.position, [2.0, 3.0, 1.0, 1.0, 1.0, 0.5], 20, 2000)
+    def test(self):
+
+        """ Test Function """
+
+        # a = Pose()
+        # a.position.x, a.position.y, a.position.z = 0.2, 0.3, 0.4
+        # a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 1.0, 0.0, 0.0, 0.0
+        # a = self.robot.pose2matrix(a)
+
+        a = [0, -pi/2, pi/4, -pi/4, -pi/2, 0]
+        b = [0, -pi/2, pi/2, -pi/2, -pi/2, 0]
+        # a = [0.6857, -1.703, 2.607, 2.238, -2.256, 0]
+        print(a, '\n')
+        # self.robot.plot(a)
+        # self.robot.plot(b)
+
+        a = self.robot.ForwardKinematic(a)
+        print(a)
+        # print(b)
+
+        # a = self.robot.matrix2pose(self.robot.ForwardKinematic([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
+        # b = self.robot.matrix2pose(self.robot.ForwardKinematic([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
+        # print(a)
+        # print(b)
+
+        print(self.robot.InverseKinematic(a))
+        # print(self.robot.InverseKinematic(b))
+
+        # exit()
+
+        trajectory = self.robot.plan_trajectory(a, b, 20, 2000)
         print (trajectory, '\n\n')
         print (colored('Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
         print (colored('Trajectory Velocities:', 'green'),    f'\n\n {trajectory.qd}\n')
         print (colored('Trajectory Accelerations:', 'green'), f'\n\n {trajectory.qdd}\n')
 
-        trajectory = self.robot.plan_cartesian_trajectory(Pose(), a, 20, 2000)
-        print (trajectory, '\n\n')
-        print (colored('Cartesian Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
-        print (colored('Cartesian Trajectory Velocities:', 'green'),    f'\n\n {trajectory.qd}\n')
-        print (colored('Cartesian Trajectory Accelerations:', 'green'), f'\n\n {trajectory.qdd}\n')
+        # Convert Joint Trajectory to Cartesian Trajectory
+        cartesian_trajectory = self.robot.joint2cartesianTrajectory(trajectory)
+
+        exit()
 
         for pos, vel, acc in zip (trajectory.q, trajectory.qd, trajectory.qdd):
             self.compute_admittance_velocity(pos, vel, acc)
             self.rate.sleep()
-
-        exit()
 
     def jointStatesCallback(self, data:JointState):
 
@@ -236,110 +270,6 @@ class PFL_Controller(Node):
             if (all(abs(joint_states.position[i] - joint_goal[i]) < 0.01 for i in range(len(joint_states)))): return True
 
         return False
-
-    def pose2matrix(self, pose:Pose) -> np.ndarray:
-
-        """ Convert Pose to Numpy Transformation Matrix """
-
-        # Convert Pose to Rotation Matrix and Translation Vector -> Create Transformation Matrix
-        transformation_matrix = np.eye(4)
-        transformation_matrix[:3, :3] = Rotation.from_quat([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]).as_matrix()
-        transformation_matrix[:3, 3] = np.array([pose.position.x, pose.position.y, pose.position.z])
-
-        return transformation_matrix
-
-    def compute_position_error(self, x_des:np.ndarray, x_act:np.ndarray) -> np.ndarray:
-
-        """ Compute Position Error: x_des - x_act """
-
-        assert x_des.shape == (4, 4), 'Desired Pose Must be a 4x4 Matrix'
-        assert x_act.shape == (4, 4), 'Actual Pose Must be a 4x4 Matrix'
-
-        if self.complete_debug: print(f'x_des: {type(x_des)} \n {x_des}\n')
-        if self.complete_debug: print(f'x_act: {type(x_act)} \n {x_act}\n')
-
-        # Compute Translation Error
-        position_error = np.zeros((6,))
-        position_error[:3] = x_des[:3, 3] - x_act[:3, 3]
-
-        # Compute Orientation Error
-        orientation_error:Rotation = Rotation.from_matrix(x_des[:3, :3]).inv() * Rotation.from_matrix(x_act[:3, :3])
-        position_error[3:] = orientation_error.as_rotvec()
-
-        return position_error.transpose()
-
-    def compute_admittance_velocity(self, cartesian_goal:Pose):
-
-        """ Compute Admittance Cartesian Velocity """
-
-        # FIX: cartesian_goal = Subscriber Pose()
-        a = Pose()
-        a.position.x, a.position.y, a.position.z = 0.2, 0.3, 0.4
-        a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 0.1, 0.3, 0.4, 0.2
-        if self.debug or self.complete_debug: print(colored('-'*100, 'yellow'), '\n')
-
-        # FIX: get FK from Subscriber JointState()
-        # Compute Position Error (x_des - x_act)
-        # position_error = self.compute_position_error(self.pose2numpy(cartesian_goal), self.pose2numpy(self.robot.FK(self.joint_states.position)))
-        position_error = self.compute_position_error(self.pose2matrix(cartesian_goal), self.pose2matrix(a))
-        if self.complete_debug: print(f'position_error: {type(position_error)} | {position_error.shape} \n {position_error}\n')
-        elif self.debug: print(f'position_error: {position_error}\n')
-
-        # Compute Manipulator Jacobian
-        J = self.robot.Jacobian(self.joint_states.position)
-        if self.complete_debug: print(f'J: {type(J)} | {J.shape} \n {J}\n')
-
-        # Compute Cartesian Velocity
-        x_dot: np.ndarray = np.matmul(J, self.joint_states.velocity) if self.use_feedback_velocity else self.x_dot_last_cycle
-        if self.complete_debug: print(f'x_dot: {type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
-        elif self.debug: print(f'x_dot:     {x_dot}')
-
-        # Compute Acceleration with Admittance (Mx'' + Dx' + Kx = 0) (x = x_des - x_act) (x'_des, X''_des = 0) -> x_act'' = -M^-1 * (- Dx_act' + K(x_des - x_act))
-        x_dot_dot: np.ndarray = np.matmul(np.linalg.inv(self.M), - np.matmul(self.D, x_dot) + np.matmul(self.K, position_error))
-        if self.complete_debug: print(f'M: {type(self.M)} \n {self.M}\n\n', f'D: {type(self.D)} \n {self.D}\n\n', f'K: {type(self.K)} \n {self.K}\n')
-        if self.complete_debug: print(f'x_dot_dot: {type(x_dot_dot)} | {x_dot_dot.shape} \n {x_dot_dot}\n')
-        elif self.debug: print(f'x_dot_dot: {x_dot_dot}')
-
-        # Integrate for Velocity Based Interface
-        x_dot = x_dot + x_dot_dot * self.rate._timer.timer_period_ns * 1e-9
-        if self.complete_debug: print(f'self.ros_rate: {self.rate._timer.timer_period_ns * 1e-9} | 1/self.ros_rate: {1/(self.rate._timer.timer_period_ns * 1e-9)}\n')
-        if self.complete_debug: print(f'new x_dot: {type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
-        elif self.debug: print(f'new x_dot: {x_dot}\n')
-
-        # PFL Safety Controller
-        x_dot = self.PFL(self.joint_states, x_dot)
-
-        # Limit System Dynamic - Update `x_dot_last_cycle`
-        q_dot = self.limit_joint_dynamics(x_dot)
-        self.x_dot_last_cycle = np.matmul(J, q_dot)
-
-        # FIX: Update Joint Velocity
-        self.joint_states.velocity = q_dot.tolist()
-
-        return q_dot
-
-    def limit_joint_dynamics(self, x_dot:np.ndarray) -> np.ndarray:
-
-        """ Limit Joint Dynamics """
-
-        # Compute Joint Velocity (q_dot = J^-1 * x_dot)
-        q_dot: np.ndarray = np.matmul(self.robot.JacobianInverse(self.joint_states.position), x_dot)
-        assert q_dot.shape == (6,), f'Joint Velocity Must be a 6x1 Vector | Shape: {q_dot.shape}'
-        if self.complete_debug: print(f'q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
-        elif self.debug: print(f'q_dot: {q_dot}\n')
-
-        # Limit Joint Velocity - Max Manipulator Joint Velocity
-        q_dot = np.array([np.sign(vel) * max_vel if abs(vel) > max_vel else vel for vel, max_vel in zip(q_dot, self.maximum_velocity)])
-
-        # Limit Joint Acceleration - Max Manipulator Joint Acceleration
-        q_dot = np.array([joint_vel + np.sign(vel - joint_vel) * max_acc * self.rate._timer.timer_period_ns * 1e-9
-                 if abs(vel - joint_vel) > max_acc * self.rate._timer.timer_period_ns * 1e-9 else vel 
-                 for vel, joint_vel, max_acc in zip(q_dot, self.joint_states.velocity, self.maximum_velocity)])
-
-        if self.complete_debug: print(f'Limiting V_Max -> q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
-        elif self.debug: print(f'Limiting V_Max -> q_dot: {q_dot}\n')
-
-        return q_dot
 
     def PFL(self, joint_states:JointState, x_dot:List[float]):
 
