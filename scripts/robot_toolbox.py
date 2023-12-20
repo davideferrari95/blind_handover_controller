@@ -177,7 +177,7 @@ class UR_Toolbox():
         for q, q_dot, q_ddot in zip(joint_trajectory.q, joint_trajectory.qd, joint_trajectory.qdd):
 
             # Convert Joint Position to Cartesian Position (x = ForwardKinematic(q))
-            x = self.matrix2numpy(self.ForwardKinematic(q))
+            x = self.matrix2array(self.ForwardKinematic(q))
             cartesian_positions.append(x)
 
             # Convert Joint Velocity to Cartesian Velocity (x_dot = Jacobian(q) * q_dot)
@@ -255,11 +255,11 @@ class UR_Toolbox():
         rotation:Rotation = Rotation.from_matrix(matrix.R)
 
         # Create Numpy Pose Array
-        numpy_pose = np.zeros((6,))
-        numpy_pose[:3] = matrix.t
-        numpy_pose[3:] = rotation.as_rotvec()
+        numpy_array = np.zeros((6,))
+        numpy_array[:3] = matrix.t
+        numpy_array[3:] = rotation.as_rotvec()
 
-        return numpy_pose
+        return numpy_array
 
     def matrix2numpy(self, matrix:SE3) -> np.ndarray:
 
@@ -270,3 +270,19 @@ class UR_Toolbox():
 
         # Convert to Numpy
         return matrix.A
+
+    def array2matrix(self, array:np.ndarray) -> SE3:
+
+        """ Convert NumPy Array to SE3 Transformation Matrix """
+
+        # Type Assertion
+        assert type(array) is np.ndarray, f"Array must be a NumPy Array | {type(array)} given | {array}"
+        assert len(array) == 6, f"Array Length must be 6 | {len(array)} given | {array}"
+
+        # Create Transformation Matrix
+        transformation_matrix = np.eye(4)
+        transformation_matrix[:3, 3] = array[:3]
+        transformation_matrix[:3, :3] = Rotation.from_rotvec(array[3:]).as_matrix()
+
+        # Convert to SE3 Matrix
+        return SE3(transformation_matrix)
