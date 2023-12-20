@@ -1,22 +1,23 @@
-import rclpy
-from rclpy.node import Rate
-
 import numpy as np
 from typing import Tuple
-from termcolor import colored
+
+from rclpy.node import Rate
+from geometry_msgs.msg import Wrench
+from sensor_msgs.msg import JointState
+
+# Import UR Toolbox and Scipy Rotation
 from scipy.spatial.transform import Rotation
 from robot_toolbox import UR_Toolbox
 
-from geometry_msgs.msg import Pose, Wrench
-from sensor_msgs.msg import JointState
-
 class AdmittanceController():
 
-    def __init__(self, robot:UR_Toolbox, rate:Rate, M:np.ndarray, D:np.ndarray, K:np.ndarray, use_feedback_velocity:bool, complete_debug:bool, debug:bool):
+    def __init__(self, robot:UR_Toolbox, rate:Rate, M:np.ndarray, D:np.ndarray, K:np.ndarray, max_vel:np.ndarray, max_acc:np.ndarray,
+                 use_feedback_velocity:bool, complete_debug:bool, debug:bool):
 
         # Controller Parameters
         self.robot:UR_Toolbox = robot
         self.rate:Rate = rate
+        self.maximum_velocity, self.maximum_acceleration = max_vel, max_acc
         self.use_feedback_velocity = use_feedback_velocity
         self.complete_debug, self.debug = complete_debug, debug
 
@@ -78,7 +79,7 @@ class AdmittanceController():
         q_dot: np.ndarray = self.robot.JacobianInverse(joint_states.position) @ new_x_dot
 
         # Limit System Dynamic
-        # limited_q_dot, limited_x_dot = self.limit_joint_dynamics(q_dot)
+        # limited_q_dot, limited_x_dot = self.limit_joint_dynamics(joint_states, q_dot)
 
         # Update `x_dot_last_cycle`
         self.x_dot_last_cycle = new_x_dot
@@ -96,7 +97,7 @@ class AdmittanceController():
 
         return x_act, x_act_dot, x_act_ddot
 
-    def limit_joint_dynamics(self, q_dot:np.ndarray) -> np.ndarray:
+    def limit_joint_dynamics(self, joint_states:JointState, q_dot:np.ndarray) -> np.ndarray:
 
         """ Limit Joint Dynamics """
 
@@ -111,7 +112,7 @@ class AdmittanceController():
         # Limit Joint Acceleration - Max Manipulator Joint Acceleration
         q_dot = np.array([joint_vel + np.sign(vel - joint_vel) * max_acc * self.rate._timer.timer_period_ns * 1e-9
                     if abs(vel - joint_vel) > max_acc * self.rate._timer.timer_period_ns * 1e-9 else vel 
-                    for vel, joint_vel, max_acc in zip(q_dot, self.joint_states.velocity, self.maximum_velocity)])
+                    for vel, joint_vel, max_acc in zip(q_dot, joint_states.velocity, self.maximum_velocity)])
 
         if self.complete_debug: print(f'Limiting V_Max -> q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
         elif self.debug: print(f'Limiting V_Max -> q_dot: {q_dot}\n')

@@ -88,17 +88,17 @@ class Handover_Controller(Node):
         self.declare_parameter('robot',                 'ur10e')
 
         # Read Parameters
-        human_mass                 = self.get_parameter('human_mass').get_parameter_value().double_value
-        robot_mass                 = self.get_parameter('robot_mass').get_parameter_value().double_value
-        admittance_mass            = self.get_parameter('admittance_mass').get_parameter_value().double_array_value
-        admittance_damping         = self.get_parameter('admittance_damping').get_parameter_value().double_array_value
-        admittance_stiffness       = self.get_parameter('admittance_stiffness').get_parameter_value().double_array_value
-        self.maximum_velocity      = self.get_parameter('maximum_velocity').get_parameter_value().double_array_value
-        self.maximum_acceleration  = self.get_parameter('maximum_acceleration').get_parameter_value().double_array_value
-        use_feedback_velocity      = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
-        self.complete_debug        = self.get_parameter('complete_debug').get_parameter_value().bool_value
-        self.debug                 = self.get_parameter('debug').get_parameter_value().bool_value
-        robot                      = self.get_parameter('robot').get_parameter_value().string_value
+        human_mass            = self.get_parameter('human_mass').get_parameter_value().double_value
+        robot_mass            = self.get_parameter('robot_mass').get_parameter_value().double_value
+        admittance_mass       = self.get_parameter('admittance_mass').get_parameter_value().double_array_value
+        admittance_damping    = self.get_parameter('admittance_damping').get_parameter_value().double_array_value
+        admittance_stiffness  = self.get_parameter('admittance_stiffness').get_parameter_value().double_array_value
+        maximum_velocity      = self.get_parameter('maximum_velocity').get_parameter_value().double_array_value
+        maximum_acceleration  = self.get_parameter('maximum_acceleration').get_parameter_value().double_array_value
+        use_feedback_velocity = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
+        self.complete_debug   = self.get_parameter('complete_debug').get_parameter_value().bool_value
+        self.debug            = self.get_parameter('debug').get_parameter_value().bool_value
+        robot                 = self.get_parameter('robot').get_parameter_value().string_value
 
         # Print Parameters
         print(colored('\nPFL Controller Parameters:', 'yellow'), '\n')
@@ -107,8 +107,8 @@ class Handover_Controller(Node):
         print(colored('    admittance_mass:', 'green'),       f'\t\t{admittance_mass}')
         print(colored('    admittance_damping:', 'green'),    f'\t{admittance_damping}')
         print(colored('    admittance_stiffness:', 'green'),  f'\t{admittance_stiffness}')
-        print(colored('    maximum_velocity:', 'green'),      f'\t\t{self.maximum_velocity}')
-        print(colored('    maximum_acceleration:', 'green'),  f'\t{self.maximum_acceleration}')
+        print(colored('    maximum_velocity:', 'green'),      f'\t\t{maximum_velocity}')
+        print(colored('    maximum_acceleration:', 'green'),  f'\t{maximum_acceleration}')
         print(colored('    use_feedback_velocity:', 'green'), f'\t{use_feedback_velocity}')
         print(colored('    complete_debug:', 'green'),        f'\t\t{self.complete_debug}')
         print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
@@ -134,6 +134,7 @@ class Handover_Controller(Node):
             M = admittance_mass * np.eye(6),
             D = admittance_damping * np.eye(6),
             K = admittance_stiffness * np.eye(6),
+            max_vel = maximum_velocity, max_acc = maximum_acceleration,
             use_feedback_velocity = use_feedback_velocity,
             complete_debug = self.complete_debug, debug = self.debug
         )
