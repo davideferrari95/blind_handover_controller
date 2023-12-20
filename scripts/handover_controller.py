@@ -15,10 +15,13 @@ from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
 
-# Import Robot and Admittance Controller Classes
+# Import Robot and UR_RTDE Move Classes
 from move_robot import UR_RTDE_Move
 from robot_toolbox import UR_Toolbox
+
+# Import Admittance and PFL Controllers Classes
 from admittance import AdmittanceController
+from power_force_limiting import PowerForceLimitingController
 
 def signal_handler(sig, frame):
 
@@ -46,9 +49,9 @@ def signal_handler(sig, frame):
     time.sleep(2)
     rclpy.try_shutdown()
 
-class PFL_Controller(Node):
+class Handover_Controller(Node):
 
-    """ PFL Controller Class """
+    """ Handover Controller Class """
 
     # Initialize Subscriber Variables
     trajectory_executed, goal_received = False, False
@@ -123,7 +126,8 @@ class PFL_Controller(Node):
 
         # Initialize Robot and Toolbox Classes
         self.move_robot = UR_RTDE_Move()
-        self.robot_toolbox = UR_Toolbox(robot)
+        # self.robot_toolbox = UR_Toolbox(robot, self.complete_debug, self.debug)
+        self.robot_toolbox = UR_Toolbox(robot, True, True)
 
         # Initialize Admittance Controller
         self.admittance_controller = AdmittanceController(
@@ -134,6 +138,9 @@ class PFL_Controller(Node):
             use_feedback_velocity = use_feedback_velocity,
             complete_debug = self.complete_debug, debug = self.debug
         )
+
+        # Initialize PFL Controller
+        self.pfl_controller = PowerForceLimitingController()
 
         self.test()
 
@@ -211,36 +218,6 @@ class PFL_Controller(Node):
         # Set Trajectory Execution Flags
         self.trajectory_executed = msg.data
 
-#   P_H_      = tf2::Vector3(0, 0, 1);
-#   P_R_      = tf2::Vector3(0, 0, 0);
-# https://github.com/ARSControl/dynamic_planner/blob/master/trajectory_scaling/src/trajectory_scaling.cpp
-# void TrajectoryScaling::humanPointCallback(
-#   const geometry_msgs::PointStamped::ConstPtr& hp)
-# {
-#   geometry_msgs::PointStamped human_point = *hp;
-#   tf2::doTransform(human_point, human_point, transform_);
-#   //  buffer_.transform(*hp, "base_link");
-#   P_H_ = tf2::Vector3(human_point.point.x, human_point.point.y, human_point.point.z);
-#   // std::cout << "Human Point: " << P_H_.x() << " " << P_H_.y() << " " << P_H_.z() << std::endl;
-# }
-
-# void TrajectoryScaling::robotPointCallback(
-#   const geometry_msgs::PointStamped::ConstPtr& rp)
-# {
-#   geometry_msgs::PointStamped robot_point = *rp;
-#   // tf2::doTransform(robot_point, robot_point, transform_);
-#   // buffer_.transform(*rp, "base_link");
-#   P_R_ = tf2::Vector3(robot_point.point.x, robot_point.point.y, robot_point.point.z);
-#   // std::cout << "Robot Point: " << P_R_.x() << " " << P_R_.y() << " " << P_R_.z() << std::endl;
-# }
-
-# tf2::Vector3 TrajectoryScaling::computeVersor()
-# {
-#   // std::cout << (P_H_-P_R_).x() << " " << (P_H_-P_R_).y() << " " << (P_H_-P_R_).z() << std::endl;
-#   return (P_H_ - P_R_) / (P_R_.distance(P_H_));
-# }
-
-
     def publishRobotVelocity(self, velocity:List[float]):
 
         """ Publish Robot Velocity """
@@ -271,12 +248,6 @@ class PFL_Controller(Node):
             if (all(abs(joint_states.position[i] - joint_goal[i]) < 0.01 for i in range(len(joint_states)))): return True
 
         return False
-
-    def PFL(self, joint_states:JointState, x_dot:List[float]):
-
-        """ PFL Controller """
-
-        return x_dot
 
     def spinner(self):
 
@@ -317,7 +288,7 @@ if __name__ == '__main__':
     rclpy.init()
 
     # Initialize Class
-    pfl_controller = PFL_Controller('pfl_controller', 500)
+    handover_controller = Handover_Controller('handover_controller', 500)
 
     # Register Signal Handler (CTRL+C)
     signal.signal(signal.SIGINT, signal_handler)
@@ -326,7 +297,7 @@ if __name__ == '__main__':
     # Main Spinner Function
     while rclpy.ok():
 
-        pfl_controller.spinner()
+        handover_controller.spinner()
 
     # Delete Node before Shutdown ROS
-    if pfl_controller: del pfl_controller
+    if handover_controller: del handover_controller

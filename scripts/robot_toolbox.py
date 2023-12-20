@@ -15,7 +15,7 @@ from geometry_msgs.msg import Pose
 
 class UR_Toolbox():
 
-    def __init__(self, robot_model='ur10e'):
+    def __init__(self, robot_model='ur10e', complete_debug:bool=False, debug:bool=False):
 
         # Create Robot - Robotic Toolbox
         self.robot = rtb.models.UR10() if robot_model.lower() in ['ur10','ur10e'] else rtb.models.UR5() if robot_model.lower() in ['ur5','ur5e'] else None
@@ -23,7 +23,11 @@ class UR_Toolbox():
 
         # FIX: Initialize Jacobian (print)
         self.Jacobian([0,0,0,0,0,0])
-        print(f'ee_links[0]: {self.robot.ee_links[0]}\n')
+        if debug: print(f'ee_links[0]: {self.robot.ee_links[0]}\n')
+        else: print()
+
+        # Set Debug Flags
+        self.complete_debug, self.debug = complete_debug, debug or complete_debug
 
     def ForwardKinematic(self, joint_positions:Union[List[float], np.ndarray]) -> SE3:
 
@@ -167,7 +171,7 @@ class UR_Toolbox():
         cartesian_positions, cartesian_velocities, cartesian_accelerations = [], [], []
 
         # Print Joint Trajectory Shape
-        print(f'Joint Trajectory Shape | Positions: {joint_trajectory.q.shape} | Velocities: {joint_trajectory.qd.shape} | Accelerations: {joint_trajectory.qdd.shape}')
+        if self.complete_debug: print(f'Joint Trajectory Shape | Positions: {joint_trajectory.q.shape} | Velocities: {joint_trajectory.qd.shape} | Accelerations: {joint_trajectory.qdd.shape}')
 
         # Convert Joint to Cartesian Positions
         for q, q_dot, q_ddot in zip(joint_trajectory.q, joint_trajectory.qd, joint_trajectory.qdd):
@@ -184,10 +188,10 @@ class UR_Toolbox():
             x_ddot = self.Jacobian(q) @ q_ddot + self.JacobianDot(q, q_dot) @ q_dot
             cartesian_accelerations.append(x_ddot)
 
-        print(f'Cartesian Trajectory Shape | Positions: {np.array(cartesian_positions).shape} | Velocities: {np.array(cartesian_velocities).shape} | Accelerations: {np.array(cartesian_accelerations).shape}\n')
-        print (colored('Cartesian Positions:', 'green'),     f'\n\n {np.array(cartesian_positions)}\n')
-        print (colored('Cartesian Velocities:', 'green'),    f'\n\n {np.array(cartesian_velocities)}\n')
-        print (colored('Cartesian Accelerations:', 'green'), f'\n\n {np.array(cartesian_accelerations)}\n')
+        if self.complete_debug: print(f'Cartesian Trajectory Shape | Positions: {np.array(cartesian_positions).shape} | Velocities: {np.array(cartesian_velocities).shape} | Accelerations: {np.array(cartesian_accelerations).shape}\n')
+        if self.debug: print (colored('Cartesian Positions:', 'green'),     f'\n\n {np.array(cartesian_positions)}\n')
+        if self.debug: print (colored('Cartesian Velocities:', 'green'),    f'\n\n {np.array(cartesian_velocities)}\n')
+        if self.debug: print (colored('Cartesian Accelerations:', 'green'), f'\n\n {np.array(cartesian_accelerations)}\n')
 
         return np.array(cartesian_positions), np.array(cartesian_velocities), np.array(cartesian_accelerations)
 

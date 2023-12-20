@@ -1,6 +1,6 @@
-# PFL Controller
+# Handover Controller
 
-This package contains a Power and Force Limit Controller for the UR10e Manipulator in ROS 2.
+This package contains an Handover Controller with Admittance and Power and Force Limit Controllers for the UR10e Manipulator in ROS 2.
 
 ## Requirements
 
@@ -21,8 +21,8 @@ This package contains a Power and Force Limit Controller for the UR10e Manipulat
 
 - Create a `conda` environment with `python=3.8.10`:
 
-        conda create -n pfl_env python=3.8.10
-        conda activate pfl_env
+        conda create -n handover_env python=3.8.10
+        conda activate handover_env
 
 - Install Python Requirements:
 
@@ -32,7 +32,7 @@ This package contains a Power and Force Limit Controller for the UR10e Manipulat
 
 - Activate the `conda` environment:
 
-        conda activate pfl_env
+        conda activate handover_env
 
 - Remember to source ROS2 and export the Domain ID (if not in `~/.bashrc`):
 
@@ -40,11 +40,11 @@ This package contains a Power and Force Limit Controller for the UR10e Manipulat
         . ~/colcon_ws/install/setup.bash
         export ROS_DOMAIN_ID=10
 
-### Launch PFL Controller
+### Launch Handover Controller
 
-- Launch `pfl_controller`:
+- Launch `handover_controller`:
 
-        ros2 launch pfl_controller pfl_controller.launch.py
+        ros2 launch handover_controller handover_controller.launch.py
 
 ## Maintainers
 
