@@ -4,9 +4,7 @@ handover_controller:
   ros__parameters:
 
     # Admittance Parameters
-    admittance_mass:      [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]
-    # admittance_damping:   [30.0, 30.0, 30.0, 10.0, 10.0, 10.0]
-    # admittance_damping:   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    admittance_mass:      [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     admittance_damping:   [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     admittance_stiffness: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 

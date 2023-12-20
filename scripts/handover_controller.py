@@ -162,8 +162,8 @@ class Handover_Controller(Node):
         # a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 1.0, 0.0, 0.0, 0.0
         # a = self.robot_toolbox.pose2matrix(a)
 
-        a = [0.0, -pi/2, pi/4, -pi/4, -pi/2, 0.0]
-        b = [0.0, -pi/2, pi/2, -pi/2, -pi/2, 0.0]
+        a = [0.0, -pi/2, pi/2, -pi/2, -pi/2, 0.0]
+        b = [0.0, -pi/2, pi/4, -pi/4, -pi/2, 0.0]
         # a = [0.6857, -1.703, 2.607, 2.238, -2.256, 0]
         print(a, '\n')
         # self.robot_toolbox.plot(a)
@@ -211,19 +211,25 @@ class Handover_Controller(Node):
             self.get_logger().info('Pausing execution...', once=True)
         self.set_parameters([Parameter('pause_execution', Parameter.Type.BOOL, True)])
 
+        for x_des, x_des_dot, x_des_ddot in zip(cartesian_trajectory[0], cartesian_trajectory[1], cartesian_trajectory[2]):
 
-        for i in range(cartesian_trajectory[0].shape[0]):
+            # start = time.time()
 
-            # if not rclpy.ok(): break
+            # Break if ROS is not Ok
+            if not rclpy.ok(): break
 
-            cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
-            joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, *cartesian_goal)
+            # Compute Admittance Velocity
+            joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, x_des, x_des_dot, x_des_ddot)
 
+            # FIX: Compute - Publish Simulation Joint States Positions
+            self.joint_states.position = [self.joint_states.position[i] + joint_velocity[i] * self.rate._timer.timer_period_ns * 1e-9 for i in range(len(self.joint_states.position))]
+            # self.publishSimulationJointStates(self.joint_states.position, joint_velocity.tolist())
+            self.publishSimulationJointStates(self.joint_states.position)
+
+            # Sleep to ROS Rate
             self.rate.sleep()
 
-            # FIX: Compute Joint States Position
-            self.joint_states.position = [self.joint_states.position[i] + joint_velocity[i] * self.rate._timer.timer_period_ns * 1e-9 for i in range(len(self.joint_states.position))]
-            self.publishSimulationJointStates(self.joint_states.position, joint_velocity.tolist())
+            # print(time.time() - start)
 
         print(colored('\nAdmittance Controller Completed\n', 'green'))
 

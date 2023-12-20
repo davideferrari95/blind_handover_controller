@@ -20,7 +20,7 @@ def create_handover_controller_node(config:List[str]):
 
     # Python Node + Parameters + YAML Config File
     handover_controller = Node(
-        package='handover_controller', executable='handover_controller.py', name='handover_controller',
+        package='handover_controller', executable='handover_controller.py', #name='handover_controller',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
         parameters=[handover_controller_parameters] + config,
     )
