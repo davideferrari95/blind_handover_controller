@@ -89,8 +89,8 @@ class Handover_Controller(Node):
         self.declare_parameter('robot',                 'ur10e')
 
         # Read Parameters
-        self.human_mass            = self.get_parameter('human_mass').get_parameter_value().double_value
-        self.robot_mass            = self.get_parameter('robot_mass').get_parameter_value().double_value
+        human_mass                 = self.get_parameter('human_mass').get_parameter_value().double_value
+        robot_mass                 = self.get_parameter('robot_mass').get_parameter_value().double_value
         admittance_mass            = self.get_parameter('admittance_mass').get_parameter_value().double_array_value
         admittance_damping         = self.get_parameter('admittance_damping').get_parameter_value().double_array_value
         admittance_stiffness       = self.get_parameter('admittance_stiffness').get_parameter_value().double_array_value
@@ -103,8 +103,8 @@ class Handover_Controller(Node):
 
         # Print Parameters
         print(colored('\nPFL Controller Parameters:', 'yellow'), '\n')
-        print(colored('    human_mass:', 'green'),            f'\t\t{self.human_mass}')
-        print(colored('    robot_mass:', 'green'),            f'\t\t{self.robot_mass}')
+        print(colored('    human_mass:', 'green'),            f'\t\t{human_mass}')
+        print(colored('    robot_mass:', 'green'),            f'\t\t{robot_mass}')
         print(colored('    admittance_mass:', 'green'),       f'\t\t{admittance_mass}')
         print(colored('    admittance_damping:', 'green'),    f'\t{admittance_damping}')
         print(colored('    admittance_stiffness:', 'green'),  f'\t{admittance_stiffness}')
@@ -140,7 +140,7 @@ class Handover_Controller(Node):
         )
 
         # Initialize PFL Controller
-        self.pfl_controller = PowerForceLimitingController()
+        self.pfl_controller = PowerForceLimitingController(self.rate, human_mass, robot_mass, self.complete_debug, self.debug)
 
         self.test()
 
@@ -271,8 +271,11 @@ class Handover_Controller(Node):
             # Get Next Cartesian Goal
             cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
 
-            # Compute Joint Velocity
+            # Compute Admittance Velocity
             joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, cartesian_goal)
+
+            # Compute PFL Velocity
+            joint_velocity = self.pfl_controller.compute_pfl_velocity(joint_velocity,  self.joint_states, self.ft_sensor_data)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(joint_velocity)

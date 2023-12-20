@@ -4,11 +4,18 @@ class PowerForceLimitingController():
 
     """ Power Force Limiting (PFL) Controller """
 
-    def __init__(self):
+    def __init__(self, rate, human_mass, robot_mass, complete_debug, debug):
 
         """ PFL Controller """
 
-        pass
+        # ROS Parameters
+        self.rate = rate
+
+        # PFL Parameters
+        self.human_mass, self.robot_mass = human_mass, robot_mass
+
+        # Set Debug Flags
+        self.complete_debug, self.debug = complete_debug, debug or complete_debug
 
 #   P_H_      = tf2::Vector3(0, 0, 1);
 #   P_R_      = tf2::Vector3(0, 0, 0);
