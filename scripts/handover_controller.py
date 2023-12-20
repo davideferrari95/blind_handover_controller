@@ -57,7 +57,6 @@ class Handover_Controller(Node):
     trajectory_executed, goal_received = False, False
     handover_cartesian_goal, joint_states = Pose(), JointState()
     joint_states, ft_sensor_data = JointState(), Wrench()
-    x_dot_last_cycle = np.zeros((6, ), dtype=np.float64)
 
     # FIX: Initialize Joint States
     joint_states.position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -169,6 +168,12 @@ class Handover_Controller(Node):
         # print(a)
         # print(b)
 
+        a = self.robot_toolbox.matrix2array(a)
+        print(a, '\n')
+
+        a = self.robot_toolbox.array2matrix(a)
+        print(a)
+
         print(self.robot_toolbox.InverseKinematic(a))
         # print(self.robot_toolbox.InverseKinematic(b))
 
@@ -272,10 +277,10 @@ class Handover_Controller(Node):
             cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
 
             # Compute Admittance Velocity
-            joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, cartesian_goal)
+            joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, cartesian_goal)
 
             # Compute PFL Velocity
-            joint_velocity = self.pfl_controller.compute_pfl_velocity(joint_velocity,  self.joint_states, self.ft_sensor_data)
+            joint_velocity = self.pfl_controller.compute_pfl_velocity(joint_velocity,  self.joint_states)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(joint_velocity)
