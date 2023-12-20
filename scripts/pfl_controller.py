@@ -17,6 +17,7 @@ from geometry_msgs.msg import Pose, Wrench
 
 # Import Robot and Admittance Controller Classes
 from move_robot import UR_RTDE_Move
+from robot_toolbox import UR_Toolbox
 from admittance import AdmittanceController
 
 def signal_handler(sig, frame):
@@ -120,12 +121,13 @@ class PFL_Controller(Node):
         self.cartesian_goal_subscriber = self.create_subscription(Pose,       '/handover/cartesian_goal',     self.cartesianGoalCallback, 1)
         self.trajectory_execution_sub  = self.create_subscription(Bool,       '/ur_rtde/trajectory_executed', self.trajectoryExecutionCallback, 1)
 
-        # Initialize Robot
-        self.robot = UR_RTDE_Move(robot_model=robot)
+        # Initialize Robot and Toolbox Classes
+        self.move_robot = UR_RTDE_Move()
+        self.robot_toolbox = UR_Toolbox(robot)
 
         # Initialize Admittance Controller
         self.admittance_controller = AdmittanceController(
-            self.robot, self.rate,
+            self.robot_toolbox, self.rate,
             M = admittance_mass * np.eye(6),
             D = admittance_damping * np.eye(6),
             K = admittance_stiffness * np.eye(6),
@@ -142,37 +144,37 @@ class PFL_Controller(Node):
         # a = Pose()
         # a.position.x, a.position.y, a.position.z = 0.2, 0.3, 0.4
         # a.orientation.w, a.orientation.x, a.orientation.y, a.orientation.z = 1.0, 0.0, 0.0, 0.0
-        # a = self.robot.pose2matrix(a)
+        # a = self.robot_toolbox.pose2matrix(a)
 
         a = [0, -pi/2, pi/4, -pi/4, -pi/2, 0]
         b = [0, -pi/2, pi/2, -pi/2, -pi/2, 0]
         # a = [0.6857, -1.703, 2.607, 2.238, -2.256, 0]
         print(a, '\n')
-        # self.robot.plot(a)
-        # self.robot.plot(b)
+        # self.robot_toolbox.plot(a)
+        # self.robot_toolbox.plot(b)
 
-        a = self.robot.ForwardKinematic(a)
+        a = self.robot_toolbox.ForwardKinematic(a)
         print(a)
         # print(b)
 
-        # a = self.robot.matrix2pose(self.robot.ForwardKinematic([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
-        # b = self.robot.matrix2pose(self.robot.ForwardKinematic([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
+        # a = self.robot_toolbox.matrix2pose(self.robot_toolbox.ForwardKinematic([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
+        # b = self.robot_toolbox.matrix2pose(self.robot_toolbox.ForwardKinematic([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
         # print(a)
         # print(b)
 
-        print(self.robot.InverseKinematic(a))
-        # print(self.robot.InverseKinematic(b))
+        print(self.robot_toolbox.InverseKinematic(a))
+        # print(self.robot_toolbox.InverseKinematic(b))
 
         # exit()
 
-        trajectory = self.robot.plan_trajectory(a, b, 20, 2000)
+        trajectory = self.robot_toolbox.plan_trajectory(a, b, 20, 2000)
         print (trajectory, '\n\n')
         print (colored('Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
         print (colored('Trajectory Velocities:', 'green'),    f'\n\n {trajectory.qd}\n')
         print (colored('Trajectory Accelerations:', 'green'), f'\n\n {trajectory.qdd}\n')
 
         # Convert Joint Trajectory to Cartesian Trajectory
-        cartesian_trajectory = self.robot.joint2cartesianTrajectory(trajectory)
+        cartesian_trajectory = self.robot_toolbox.joint2cartesianTrajectory(trajectory)
 
         exit()
 
@@ -208,7 +210,6 @@ class PFL_Controller(Node):
 
         # Set Trajectory Execution Flags
         self.trajectory_executed = msg.data
-
 
 #   P_H_      = tf2::Vector3(0, 0, 1);
 #   P_R_      = tf2::Vector3(0, 0, 0);
@@ -261,7 +262,7 @@ class PFL_Controller(Node):
         """ Check if Goal is Reached """
 
         # Joint Goal to Pose
-        joint_goal = self.robot.IK(goal)
+        joint_goal = self.move_robot.IK(goal)
 
         # Check if Goal is Reached
         if (joint_goal and joint_states):
@@ -284,17 +285,29 @@ class PFL_Controller(Node):
         # If Goal Received -> Plan Trajectory
         if self.goal_received:
 
-            trajectory = self.robot.plan_trajectory(self.joint_states.position, self.robot.IK(self.handover_cartesian_goal), 20, 2000)
-            cartesian_trajectory = self.robot.joint2cartesianTrajectory(trajectory)
+            trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, self.robot_toolbox.InverseKinematic(self.handover_cartesian_goal), 20, 2000)
+            cartesian_trajectory, i = self.robot_toolbox.joint2cartesianTrajectory(trajectory), 0
+
+        # FIX: If Trajectory Executed -> Admittance Controller with Target = Trajectory Point until Handover is Completed
+        # while (rclpy.ok() and self.goal_received and not self.handover_completed):
 
         # While Goal Received but Not Reached
-        while (rclpy.ok() and self.goal_received and not self.is_goal_reached(self.handover_cartesian_goal, self.joint_states)):
+        # while (rclpy.ok() and self.goal_received and not self.is_goal_reached(self.handover_cartesian_goal, self.joint_states)):
+
+        # While Goal Received
+        while (rclpy.ok() and self.goal_received):
+
+            # Get Next Cartesian Goal
+            cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
 
             # Compute Joint Velocity
-            joint_velocity = self.compute_admittance_velocity(self.handover_cartesian_goal)
+            joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, cartesian_goal)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(joint_velocity)
+
+            # Increment Counter only if i < last trajectory point
+            if i < cartesian_trajectory[0].shape[0] - 1: i += 1
 
         self.goal_received = False
 
