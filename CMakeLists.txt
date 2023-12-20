@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(pfl_controller)
+project(handover_controller)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -30,7 +30,7 @@ ament_python_install_package(${PROJECT_NAME})
 
 # Install Python Scripts
 install(PROGRAMS
-  scripts/pfl_controller.py
+  scripts/handover_controller.py
   scripts/move_robot.py
   DESTINATION lib/${PROJECT_NAME}
 )

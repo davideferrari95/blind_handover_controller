@@ -10,7 +10,7 @@ from launch.substitutions import LaunchConfiguration
 def create_pfl_controller_node(config:List[str]):
 
     # Python Node - Parameters
-    pfl_controller_parameters = {
+    handover_controller_parameters = {
         'use_feedback_velocity': LaunchConfiguration('use_feedback_velocity'),
         'complete_debug': LaunchConfiguration('complete_debug'),
         'debug': LaunchConfiguration('debug'),
@@ -18,13 +18,13 @@ def create_pfl_controller_node(config:List[str]):
     }
 
     # Python Node + Parameters + YAML Config File
-    pfl_controller = Node(
-        package='pfl_controller', executable='pfl_controller.py', name='pfl_controller',
+    handover_controller = Node(
+        package='handover_controller', executable='handover_controller.py', name='handover_controller',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
-        parameters=[pfl_controller_parameters] + config,
+        parameters=[handover_controller_parameters] + config,
     )
 
-    return pfl_controller
+    return handover_controller
 
 def generate_launch_description():
 
@@ -42,7 +42,7 @@ def generate_launch_description():
     launch_description.add_action(robot_arg)
 
     # Config File Path
-    config = os.path.join(get_package_share_directory('pfl_controller'), 'config','config.yaml')
+    config = os.path.join(get_package_share_directory('handover_controller'), 'config','config.yaml')
 
     # Launch Description - Add Nodes
     launch_description.add_action(create_pfl_controller_node([config]))
