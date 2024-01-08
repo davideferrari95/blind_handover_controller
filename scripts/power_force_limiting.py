@@ -148,8 +148,8 @@ class PowerForceLimitingController(Node):
 
         # Compute Human Projected Velocity
         Vh = np.array([self.human_vel.x, self.human_vel.y, self.human_vel.z]) @ np.array([hr_versor.x, hr_versor.y, hr_versor.z])
-        print(colored('Human Velocity: ', 'green'), f'{self.human_vel.x} {self.human_vel.y} {self.human_vel.z}')
-        print(colored('Human Projected Velocity: ', 'green'), Vh, '\n')
+        if self.complete_debug: print(colored('Human Velocity: ', 'green'), f'{self.human_vel.x} {self.human_vel.y} {self.human_vel.z}')
+        if self.complete_debug: print(colored('Human Projected Velocity: ', 'green'), Vh, '\n')
 
         # Robot Maximum Acceleration
         a_max = np.deg2rad(self.max_speed) / self.stopping_time
@@ -164,27 +164,27 @@ class PowerForceLimitingController(Node):
         # Compute PH and PR Vector3
         P_H, P_R = self.human_point, self.compute_robot_point(joint_states)
 
-        print(colored('\nPFL Controller:\n', 'green'))
-        print(colored('Human Point: ', 'green'), P_H)
-        print(colored('Robot Point: ', 'green'), P_R, '\n')
+        if self.debug or self.complete_debug: print(colored('\nPFL Controller:\n', 'green'))
+        if self.complete_debug: print(colored('Human Point: ', 'green'), P_H)
+        if self.complete_debug: print(colored('Robot Point: ', 'green'), P_R, '\n')
 
         # Compute Versor
         hr_versor = self.compute_versor(P_H, P_R)
-        print (colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}\n')
+        if self.complete_debug: print (colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}\n')
 
         # Compute Maximum Robot Velocity according to ISO/TS 15066
         vel_limit = self.compute_ISO_vel_lim(P_H, P_R, hr_versor)
-        print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit, '\n')
+        if self.debug or self.complete_debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit, '\n')
 
         # Compute Robot Projected Desired Velocity
         x_dot: np.ndarray = self.robot.Jacobian(joint_states.position) @ np.array(desired_joint_velocity)
         Vr = np.array([x_dot[0], x_dot[1], x_dot[2]]) @ np.array([hr_versor.x, hr_versor.y, hr_versor.z])
-        print(colored('Robot Desired Velocity: ', 'green'), x_dot)
-        print(colored('Robot Projected Desired Velocity: ', 'green'), Vr, '\n')
+        if self.complete_debug: print(colored('Robot Desired Velocity: ', 'green'), x_dot)
+        if self.complete_debug: print(colored('Robot Projected Desired Velocity: ', 'green'), Vr, '\n')
 
         # Compute Scaling Factor (Alpha = V_max / Vr)
         scaling_factor =  vel_limit / Vr
-        print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
+        if self.debug or self.complete_debug: print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
 
         # Compute Scaled Joint Velocity (alpha < 0 -> robot moving away from human)
         if scaling_factor >= 1: return desired_joint_velocity
