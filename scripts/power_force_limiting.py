@@ -164,7 +164,7 @@ class PowerForceLimitingController(Node):
         # Compute PH and PR Vector3
         P_H, P_R = self.human_point, self.compute_robot_point(joint_states)
 
-        if self.debug or self.complete_debug: print(colored('\nPFL Controller:\n', 'green'))
+        if self.complete_debug: print(colored('\nPFL Controller:\n', 'green'))
         if self.complete_debug: print(colored('Human Point: ', 'green'), P_H)
         if self.complete_debug: print(colored('Robot Point: ', 'green'), P_R, '\n')
 
@@ -174,7 +174,8 @@ class PowerForceLimitingController(Node):
 
         # Compute Maximum Robot Velocity according to ISO/TS 15066
         vel_limit = self.compute_ISO_vel_lim(P_H, P_R, hr_versor)
-        if self.debug or self.complete_debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit, '\n')
+        if self.complete_debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit, '\n')
+        elif self.debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit)
 
         # Compute Robot Projected Desired Velocity
         x_dot: np.ndarray = self.robot.Jacobian(joint_states.position) @ np.array(desired_joint_velocity)
@@ -185,6 +186,7 @@ class PowerForceLimitingController(Node):
         # Compute Scaling Factor (Alpha = V_max / Vr)
         scaling_factor =  vel_limit / Vr
         if self.debug or self.complete_debug: print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
+        if self.debug or self.complete_debug: print('-'*100, '\n')
 
         # Compute Scaled Joint Velocity (alpha < 0 -> robot moving away from human)
         if scaling_factor >= 1: return desired_joint_velocity
