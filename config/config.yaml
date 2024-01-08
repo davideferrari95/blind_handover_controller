@@ -8,10 +8,6 @@ handover_controller:
     admittance_damping:   [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     admittance_stiffness: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
-    # PFL Parameters
-    human_mass: 10.00
-    robot_mass: 10.00
-
     # Kinematic Parameters
     maximum_velocity: [1.05, 1.05, 1.57, 1.57, 1.57, 1.57]
     # maximum_acceleration: [0.57, 0.57, 0.57, 0.57, 0.57, 0.57]
