@@ -29,7 +29,7 @@ class UR_Toolbox():
         # Set Debug Flags
         self.complete_debug, self.debug = complete_debug, debug or complete_debug
 
-    def ForwardKinematic(self, joint_positions:Union[List[float], np.ndarray]) -> SE3:
+    def ForwardKinematic(self, joint_positions:Union[List[float], np.ndarray], end:str=None, start:str=None) -> SE3:
 
         """ Forward Kinematics Using Peter Corke Robotics Toolbox """
 
@@ -40,7 +40,7 @@ class UR_Toolbox():
         assert type(joint_positions) in [List[float], np.ndarray], f"Joint Positions must be a ArrayLike | {type(joint_positions)} given"
         assert len(joint_positions) == 6, f"Joint Positions Length must be 6 | {len(joint_positions)} given \nJoint Positions:\n{joint_positions}"
 
-        return self.robot.fkine(joint_positions)
+        return self.robot.fkine(joint_positions, end=end, start=start)
 
     def InverseKinematic(self, pose:Union[Pose, NDArray, SE3]) -> IKSolution:
 
