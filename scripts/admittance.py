@@ -38,9 +38,19 @@ class AdmittanceController():
         position_error = np.zeros((6,))
         position_error[:3] = pos_1.t - pos_2.t
 
-        # Compute Orientation Error (1/2[R1^T * R2 - R2^T * R1])
-        orientation_error = 0.5 * (pos_1.R.transpose() @ pos_2.R - pos_2.R.transpose() @ pos_1.R)
-        position_error[3:] = Rotation.from_matrix(orientation_error).as_rotvec()
+        # Convert Rotation Matrix to Quaternion
+        quat_1, quat_2 = Rotation.from_matrix(pos_1.R).as_quat(), Rotation.from_matrix(pos_2.R).as_quat()
+
+        # Check for Quaternion Sign
+        if np.dot(quat_2, quat_1) < 0: quat_1[1:3] = -quat_1[1:3]
+
+        # Compute Theta
+        theta = np.arccos(np.dot(quat_2, quat_1))
+        if theta == 0.0: dq  = [0.0, 0.0, 0.0, 0.0]
+        else: dq = theta / np.sin(theta) * (quat_1 - np.cos(theta) * quat_2)
+
+        # Compute Orientation Error
+        position_error[3:] = Rotation.from_quat(2 * dq * quat_2.conj()).as_rotvec()
 
         return position_error
 
