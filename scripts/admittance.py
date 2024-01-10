@@ -13,12 +13,13 @@ from robot_toolbox import UR_Toolbox, SE3
 class AdmittanceController():
 
     def __init__(self, robot:UR_Toolbox, rate:Rate, M:np.ndarray, D:np.ndarray, K:np.ndarray, max_vel:np.ndarray, max_acc:np.ndarray,
-                 use_feedback_velocity:bool, complete_debug:bool, debug:bool):
+                 admittance_weight:float=1.0, use_feedback_velocity:bool=False, complete_debug:bool=False, debug:bool=False):
 
         # Controller Parameters
         self.robot:UR_Toolbox = robot
         self.rate:Rate = rate
         self.maximum_velocity, self.maximum_acceleration = max_vel, max_acc
+        self.admittance_weight = admittance_weight
         self.use_feedback_velocity = use_feedback_velocity
         self.complete_debug, self.debug = complete_debug, debug
 
@@ -42,7 +43,7 @@ class AdmittanceController():
         quat_1, quat_2 = Rotation.from_matrix(pos_1.R).as_quat(), Rotation.from_matrix(pos_2.R).as_quat()
 
         # Check for Quaternion Sign
-        if np.dot(quat_2, quat_1) < 0: quat_1[1:3] = -quat_1[1:3]
+        if np.dot(quat_2, quat_1) < 0: quat_1[1:] = -quat_1[1:]
 
         # Compute Theta
         theta = np.arccos(np.dot(quat_2, quat_1))
@@ -73,7 +74,7 @@ class AdmittanceController():
         elif self.debug: print(colored('x_dot:     ', 'green'), f'{x_dot}')
 
         # Compute Acceleration Admittance (Mx'' + Dx' + Kx = Fe) (x = x_des - x_act) (x'' = x_des'' - u) -> u = M^-1 * (D (x_des' - x_act') + K (x_des - x_act) - Fe) + x_des'')
-        x_ddot: np.ndarray = np.linalg.inv(self.M) @ (self.D @ (x_des_dot - x_dot) + self.K @ (self.position_difference(x_des, x)) - self.get_external_forces(external_force)) + x_des_ddot
+        x_ddot: np.ndarray = np.linalg.inv(self.M) @ (self.D @ (x_des_dot - x_dot) + self.K @ self.position_difference(x_des, x) - self.get_external_forces(external_force)) + x_des_ddot
         if self.complete_debug: print(colored('M: ', 'green'), f'{type(self.M)} \n {self.M}\n\n', colored('D: ', 'green'), f'{type(self.D)} \n {self.D}\n\n', colored('K: ', 'green'), f'{type(self.K)} \n {self.K}\n')
         if self.complete_debug: print(colored('x_dot_dot: ', 'green'), f'{type(x_ddot)} | {x_ddot.shape} \n {x_ddot}\n')
         elif self.debug: print(colored('x_dot_dot: ', 'green'), f'{x_ddot}')
@@ -99,12 +100,26 @@ class AdmittanceController():
 
         """ Get FT Sensor External Forces """
 
-        # Compute External Forces
+        # Get External Forces
         Fe = np.zeros((6, ), dtype=np.float64)
-        Fe[:3] = np.array([external_forces.force.x, external_forces.force.y, external_forces.force.z])
-        Fe[3:] = np.array([external_forces.torque.x, external_forces.torque.y, external_forces.torque.z])
+        Fe[:3] = np.array([external_forces.force.x, external_forces.force.y, -external_forces.force.z])
+        Fe[3:] = np.array([external_forces.torque.x, external_forces.torque.y, -external_forces.torque.z])
 
-        return Fe
+        # Remap External Forces from FT Sensor Frame to End-Effector Frame
+        return self.admittance_weight * self.get_tool_transform() @ Fe
+
+    def get_tool_transform(self) -> np.ndarray:
+
+        """ Get End-Effector Rotation Matrix for FT Sensor """
+
+        # Computing the actual position of the end-effector
+        tool_transform = self.robot.robot.tool.R
+
+        # Rotation Matrix 6x6
+        rotation_matrix = np.zeros((6,6), dtype=np.float64)
+        rotation_matrix[0:3, 0:3], rotation_matrix[3:6, 3:6] = tool_transform, tool_transform
+
+        return rotation_matrix
 
     def joint2cartesian_states(self, joint_states:JointState) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 

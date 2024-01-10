@@ -33,6 +33,7 @@ def signal_handler(sig, frame):
     # Create ROS2 Node + Publisher
     ur_stop = rclpy.create_node('ur_stop_node', enable_rosout=False)
     joint_group_vel_controller_publisher = ur_stop.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
+    time.sleep(1)
 
     # Create Stop Message
     stop_msgs = Float64MultiArray(data=[0.0] * 6)
@@ -46,7 +47,7 @@ def signal_handler(sig, frame):
     ur_stop.get_logger().error('Stop Signal Received. Stopping UR...')
 
     # Shutdown ROS
-    time.sleep(2)
+    time.sleep(1)
     rclpy.try_shutdown()
 
 class Handover_Controller(Node):
@@ -80,7 +81,10 @@ class Handover_Controller(Node):
         self.declare_parameter('admittance_stiffness',  [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])
         self.declare_parameter('maximum_velocity',      [1.05, 1.05, 1.57, 1.57, 1.57, 1.57])
         self.declare_parameter('maximum_acceleration',  [0.57, 0.57, 0.57, 0.57, 0.57, 0.57])
-        self.declare_parameter('use_feedback_velocity', True)
+        self.declare_parameter('admittance_weight',     0.1)
+        self.declare_parameter('force_dead_zone',       4.0)
+        self.declare_parameter('torque_dead_zone',      1.0)
+        self.declare_parameter('use_feedback_velocity', False)
         self.declare_parameter('complete_debug',        False)
         self.declare_parameter('debug',                 False)
         self.declare_parameter('sim',                   False)
@@ -96,6 +100,8 @@ class Handover_Controller(Node):
         self.declare_parameter('position_uncertainty', 0.03)  # mm
 
         # Read Parameters
+        self.force_dead_zone  = self.get_parameter('force_dead_zone').get_parameter_value().double_value
+        self.torque_dead_zone = self.get_parameter('torque_dead_zone').get_parameter_value().double_value
         use_feedback_velocity = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
         self.complete_debug   = self.get_parameter('complete_debug').get_parameter_value().bool_value
         self.debug            = self.get_parameter('debug').get_parameter_value().bool_value
@@ -145,6 +151,7 @@ class Handover_Controller(Node):
             K = self.get_parameter('admittance_stiffness').get_parameter_value().double_array_value * np.eye(6),
             max_vel = self.get_parameter('maximum_velocity').get_parameter_value().double_array_value,
             max_acc = self.get_parameter('maximum_acceleration').get_parameter_value().double_array_value,
+            admittance_weight = self.get_parameter('admittance_weight').get_parameter_value().double_value,
             use_feedback_velocity = False if self.sim else use_feedback_velocity,
             complete_debug = self.complete_debug, debug = self.debug
         )
@@ -153,8 +160,8 @@ class Handover_Controller(Node):
         self.pfl_controller = PowerForceLimitingController(self.rate, self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
 
         # FIX: Remove Test Function
-        self.test()
-        # self.test_real()
+        if self.sim: self.test()
+        else: self.test_real()
 
     def test(self):
 
@@ -255,8 +262,10 @@ class Handover_Controller(Node):
 
         """ Test Function """
 
-        goal = [-1.57, -1.57, -1.57, 0.0, 1.57, 0.0]
+        goal = [-1.57, -1.75, -1.57, -1.57, 1.75, -1.0]
+        # goal = [-1.0, -1.50, -1.0, -1.0, 1.75, -1.0]
 
+        time.sleep(1)
         print(f'JointState Position: {self.joint_states.position}\n')
 
         trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, goal, 10, self.ros_rate)
@@ -278,9 +287,10 @@ class Handover_Controller(Node):
 
             # Compute Admittance Velocity
             desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, x_des, x_des_dot, x_des_ddot)
+            # desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, Wrench(), x_des, x_des_dot, x_des_ddot)
 
             # Compute PFL Velocity
-            desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(desired_joint_velocity,  self.joint_states)
+            # desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(desired_joint_velocity,  self.joint_states)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(desired_joint_velocity)
@@ -291,6 +301,9 @@ class Handover_Controller(Node):
             # print(time.time() - start)
 
         print(colored('\nAdmittance Controller Completed\n', 'green'))
+
+        # Stop Robot
+        self.publishRobotVelocity([0.0] * 6)
 
         exit()
 
@@ -305,8 +318,13 @@ class Handover_Controller(Node):
 
         """ FT Sensor Callback """
 
-        # Get FT Sensor Data
-        self.ft_sensor_data = data
+        # Get FT Sensor Data - Apply Dead Zone
+        self.ft_sensor_data.force.x = data.force.x if abs(data.force.x) > abs(self.force_dead_zone) else 0.0
+        self.ft_sensor_data.force.y = data.force.y if abs(data.force.y) > abs(self.force_dead_zone) else 0.0
+        self.ft_sensor_data.force.z = data.force.z if abs(data.force.z) > abs(self.force_dead_zone) else 0.0
+        self.ft_sensor_data.torque.x = data.torque.x if abs(data.torque.x) > abs(self.torque_dead_zone) else 0.0
+        self.ft_sensor_data.torque.y = data.torque.y if abs(data.torque.y) > abs(self.torque_dead_zone) else 0.0
+        self.ft_sensor_data.torque.z = data.torque.z if abs(data.torque.z) > abs(self.torque_dead_zone) else 0.0
 
     def cartesianGoalCallback(self, data:Pose):
 
