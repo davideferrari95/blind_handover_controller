@@ -8,7 +8,7 @@ from sensor_msgs.msg import JointState
 
 # Import UR Toolbox and Scipy Rotation
 from scipy.spatial.transform import Rotation
-from robot_toolbox import UR_Toolbox
+from robot_toolbox import UR_Toolbox, SE3
 
 class AdmittanceController():
 
@@ -26,27 +26,25 @@ class AdmittanceController():
         self.M, self.D, self.K = M, D, K
         self.x_dot_last_cycle = np.zeros((6, ), dtype=np.float64)
 
-    def compute_position_error(self, x_des:np.ndarray, x_act:np.ndarray) -> np.ndarray:
+    def position_difference(self, pos_1:SE3, pos_2:SE3) -> np.ndarray:
 
-        """ Compute Position Error: x_des - x_act """
+        """ Compute Position Difference: pos_1 - pos_2 """
 
-        assert x_des.shape == (4, 4), 'Desired Pose Must be a 4x4 Matrix'
-        assert x_act.shape == (4, 4), 'Actual Pose Must be a 4x4 Matrix'
-
-        if self.complete_debug: print(f'x_des: {type(x_des)} \n {x_des}\n')
-        if self.complete_debug: print(f'x_act: {type(x_act)} \n {x_act}\n')
+        # Type Assertions
+        assert isinstance(pos_1, SE3), f'Position 1 Must be a SE3 Object, given: {type(pos_1)}'
+        assert isinstance(pos_2, SE3), f'Position 2 Must be a SE3 Object, given: {type(pos_2)}'
 
         # Compute Translation Error
         position_error = np.zeros((6,))
-        position_error[:3] = x_des[:3, 3] - x_act[:3, 3]
+        position_error[:3] = pos_1.t - pos_2.t
 
-        # Compute Orientation Error
-        orientation_error:Rotation = Rotation.from_matrix(x_des[:3, :3]).inv() * Rotation.from_matrix(x_act[:3, :3])
-        position_error[3:] = orientation_error.as_rotvec()
+        # Compute Orientation Error (1/2[R1^T * R2 - R2^T * R1])
+        orientation_error = 0.5 * (pos_1.R.transpose() @ pos_2.R - pos_2.R.transpose() @ pos_1.R)
+        position_error[3:] = Rotation.from_matrix(orientation_error).as_rotvec()
 
-        return position_error.transpose()
+        return position_error
 
-    def compute_admittance_velocity(self, joint_states:JointState, external_force:Wrench, x_des:np.ndarray, x_des_dot:np.ndarray, x_des_ddot:np.ndarray) -> np.ndarray:
+    def compute_admittance_velocity(self, joint_states:JointState, external_force:Wrench, x_des:SE3, x_des_dot:np.ndarray, x_des_ddot:np.ndarray) -> np.ndarray:
 
         """ Compute Admittance Cartesian Velocity """
 
@@ -55,17 +53,17 @@ class AdmittanceController():
         if self.complete_debug: print(colored('J: ', 'green'), f'{type(J)} | {J.shape} \n {J}\n')
 
         # Compute Cartesian Position
-        x = self.robot.matrix2array(self.robot.ForwardKinematic(np.array(joint_states.position)))
+        x = self.robot.ForwardKinematic(np.array(joint_states.position))
         if self.complete_debug: print(colored('x: ', 'green'), f'{type(x)} | {x.shape} \n {x}\n')
-        elif self.debug: print(colored('x:         ', 'green'), f'{x}')
+        elif self.debug: print(colored('x:         ', 'green'), f'{self.robot.matrix2array(x)}')
 
         # Compute Cartesian Velocity
         x_dot: np.ndarray = J @ np.array(joint_states.velocity) if self.use_feedback_velocity else self.x_dot_last_cycle
         if self.complete_debug: print(colored('x_dot: ', 'green'), f'{type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
         elif self.debug: print(colored('x_dot:     ', 'green'), f'{x_dot}')
 
-        # Compute Acceleration Admittance (Mx'' + Dx' + Kx = Fe) (x = x_des - x_act) (x'' = x_des'' - u) -> u = M^-1 * (D (x_act' - x_des') + K (x_act - x_des) - Fe) + x_des'')
-        x_ddot: np.ndarray = np.linalg.inv(self.M) @ (self.D @ (x_dot - x_des_dot) + self.K @ (x_des - x) - self.get_external_forces(external_force)) + x_des_ddot
+        # Compute Acceleration Admittance (Mx'' + Dx' + Kx = Fe) (x = x_des - x_act) (x'' = x_des'' - u) -> u = M^-1 * (D (x_des' - x_act') + K (x_des - x_act) - Fe) + x_des'')
+        x_ddot: np.ndarray = np.linalg.inv(self.M) @ (self.D @ (x_des_dot - x_dot) + self.K @ (self.position_difference(x_des, x)) - self.get_external_forces(external_force)) + x_des_ddot
         if self.complete_debug: print(colored('M: ', 'green'), f'{type(self.M)} \n {self.M}\n\n', colored('D: ', 'green'), f'{type(self.D)} \n {self.D}\n\n', colored('K: ', 'green'), f'{type(self.K)} \n {self.K}\n')
         if self.complete_debug: print(colored('x_dot_dot: ', 'green'), f'{type(x_ddot)} | {x_ddot.shape} \n {x_ddot}\n')
         elif self.debug: print(colored('x_dot_dot: ', 'green'), f'{x_ddot}')
@@ -79,7 +77,7 @@ class AdmittanceController():
         # Compute Joint Velocity (q_dot = J^-1 * new_x_dot)
         q_dot: np.ndarray = self.robot.JacobianInverse(joint_states.position) @ new_x_dot
 
-        # Limit System Dynamic
+        # TODO: Limit System Dynamic
         # limited_q_dot, limited_x_dot = self.limit_joint_dynamics(joint_states, q_dot)
 
         # Update `x_dot_last_cycle`
@@ -113,15 +111,17 @@ class AdmittanceController():
 
         """ Limit Joint Dynamics """
 
+        # TODO: Limit Joint Velocity and Acceleration by Scaling Factor
+
         # Type Assertions
         assert q_dot.shape == (6,), f'Joint Velocity Must be a 6x1 Vector | Shape: {q_dot.shape}'
         if self.complete_debug: print(f'q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
         elif self.debug: print(f'q_dot: {q_dot}\n')
 
-        # Limit Joint Velocity - Max Manipulator Joint Velocity
+        # TODO: Limit Joint Velocity - Max Manipulator Joint Velocity
         q_dot = np.array([np.sign(vel) * max_vel if abs(vel) > max_vel else vel for vel, max_vel in zip(q_dot, self.maximum_velocity)])
 
-        # Limit Joint Acceleration - Max Manipulator Joint Acceleration
+        # TODO: Limit Joint Acceleration - Max Manipulator Joint Acceleration
         q_dot = np.array([joint_vel + np.sign(vel - joint_vel) * max_acc * self.rate._timer.timer_period_ns * 1e-9
                     if abs(vel - joint_vel) > max_acc * self.rate._timer.timer_period_ns * 1e-9 else vel 
                     for vel, joint_vel, max_acc in zip(q_dot, joint_states.velocity, self.maximum_velocity)])

@@ -51,6 +51,7 @@ class UR_Toolbox():
 
         # Convert Pose to SE3 Matrix
         if type(pose) is Pose: pose = self.pose2matrix(pose)
+        if type(pose) is np.ndarray: pose = self.array2matrix(pose)
 
         return self.robot.ikine_NR(pose, q0=[0, -pi/2, pi/2, -pi/2, -pi/2, 0])
 
@@ -160,7 +161,7 @@ class UR_Toolbox():
         # Return Cartesian Trajectory (Array of SE3)
         return ctraj(start_pose, end_pose, time_vector)
 
-    def joint2cartesianTrajectory(self, joint_trajectory:Trajectory) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def joint2cartesianTrajectory(self, joint_trajectory:Trajectory) -> Tuple[List[SE3], np.ndarray, np.ndarray]:
 
         """ Convert Joint Trajectory to Cartesian Trajectory """
 
@@ -177,7 +178,7 @@ class UR_Toolbox():
         for q, q_dot, q_ddot in zip(joint_trajectory.q, joint_trajectory.qd, joint_trajectory.qdd):
 
             # Convert Joint Position to Cartesian Position (x = ForwardKinematic(q))
-            x = self.matrix2array(self.ForwardKinematic(q))
+            x = self.ForwardKinematic(q)
             cartesian_positions.append(x)
 
             # Convert Joint Velocity to Cartesian Velocity (x_dot = Jacobian(q) * q_dot)
@@ -193,7 +194,7 @@ class UR_Toolbox():
         if self.debug: print (colored('Cartesian Velocities:', 'green'),    f'\n\n {np.array(cartesian_velocities)}\n')
         if self.debug: print (colored('Cartesian Accelerations:', 'green'), f'\n\n {np.array(cartesian_accelerations)}\n')
 
-        return np.array(cartesian_positions), np.array(cartesian_velocities), np.array(cartesian_accelerations)
+        return cartesian_positions, np.array(cartesian_velocities), np.array(cartesian_accelerations)
 
     def pose2array(self, pose:Pose) -> np.ndarray:
 
