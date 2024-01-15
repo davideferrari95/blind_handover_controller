@@ -76,28 +76,14 @@ class Handover_Controller(Node):
         self.spin_thread.start()
 
         # Declare Parameters
-        self.declare_parameter('admittance_mass',       [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])
-        self.declare_parameter('admittance_damping',    [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])
-        self.declare_parameter('admittance_stiffness',  [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])
-        self.declare_parameter('maximum_velocity',      [1.05, 1.05, 1.57, 1.57, 1.57, 1.57])
-        self.declare_parameter('maximum_acceleration',  [0.57, 0.57, 0.57, 0.57, 0.57, 0.57])
-        self.declare_parameter('admittance_weight',     0.1)
-        self.declare_parameter('force_dead_zone',       4.0)
-        self.declare_parameter('torque_dead_zone',      1.0)
-        self.declare_parameter('use_feedback_velocity', False)
-        self.declare_parameter('complete_debug',        False)
-        self.declare_parameter('debug',                 False)
-        self.declare_parameter('sim',                   False)
-        self.declare_parameter('human_radius',          0.1)
-        self.declare_parameter('robot',                 'ur10e')
+        self.declare_parameters('', [('admittance_mass', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_damping', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_stiffness', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])])
+        self.declare_parameters('', [('maximum_velocity', [1.05, 1.05, 1.57, 1.57, 1.57, 1.57]), ('maximum_acceleration', [0.57, 0.57, 0.57, 0.57, 0.57, 0.57])])
+        self.declare_parameters('', [('admittance_weight', 0.1), ('force_dead_zone', 4.0), ('torque_dead_zone', 1.0), ('human_radius', 0.1)])
+        self.declare_parameters('', [('use_feedback_velocity', False), ('sim', False), ('complete_debug', False), ('debug', False)])
 
         # Declare Robot Parameters
-        self.declare_parameter('payload',              5.0)   # kg
-        self.declare_parameter('reach',                0.85)  # m
-        self.declare_parameter('max_speed',            180.0) # deg
-        self.declare_parameter('stopping_time',        0.150) # s
-        self.declare_parameter('stopping_distance',    0.20)  # m
-        self.declare_parameter('position_uncertainty', 0.03)  # mm
+        self.declare_parameters('', [('robot', 'ur10e'), ('payload', 5.0), ('reach', 0.85), ('max_speed', 180.0)]) # kg, m, deg/s
+        self.declare_parameters('', [('stopping_time', 0.150), ('stopping_distance', 0.20), ('position_uncertainty', 0.03)]) # s, m, mm
 
         # Read Parameters
         self.force_dead_zone  = self.get_parameter('force_dead_zone').get_parameter_value().double_value
@@ -140,8 +126,7 @@ class Handover_Controller(Node):
 
         # Initialize Robot and Toolbox Classes
         self.move_robot = UR_RTDE_Move()
-        # FIX: self.robot_toolbox = UR_Toolbox(robot, self.complete_debug, self.debug)
-        self.robot_toolbox = UR_Toolbox(robot, True, True)
+        self.robot_toolbox = UR_Toolbox(robot, self.complete_debug, self.debug)
 
         # Initialize Admittance Controller
         self.admittance_controller = AdmittanceController(
@@ -262,8 +247,13 @@ class Handover_Controller(Node):
 
         """ Test Function """
 
-        goal = [-1.57, -1.75, -1.57, -1.57, 1.75, -1.0]
+        # UR5e
+        # goal = [-1.57, -1.75, -1.57, -1.57, 1.75, -1.0]
         # goal = [-1.0, -1.50, -1.0, -1.0, 1.75, -1.0]
+
+        # UR10e
+        goal = [0.15, -1.71, 2.28, -2.13, -1.67, 0.39]
+        # goal = [0.45, -2.30, 2.28, -2.13, -1.67, 0.39]
 
         time.sleep(1)
         print(f'JointState Position: {self.joint_states.position}\n')
