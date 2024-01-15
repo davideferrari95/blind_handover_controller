@@ -6,8 +6,7 @@ handover_controller:
     # Admittance Parameters
     admittance_mass:      [40.0, 40.0, 40.0, 10.0, 10.0, 10.0]
     admittance_damping:   [20.0, 20.0, 20.0, 10.0, 10.0, 10.0]
-    # admittance_stiffness: [10.0, 10.0, 10.0, 0.5, 0.5, 0.5]
-    admittance_stiffness: [40.0, 40.0, 40.0, 0.0, 0.0, 0.0]
+    admittance_stiffness: [40.0, 40.0, 40.0, 10.0, 10.0, 10.0]
 
     # FT-Sensor Dead Zone Parameters
     force_dead_zone: 4.0

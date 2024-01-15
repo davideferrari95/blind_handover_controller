@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np, quaternion as quat
 from typing import Tuple
 from termcolor import colored
 
@@ -6,8 +6,7 @@ from rclpy.node import Rate
 from geometry_msgs.msg import Wrench
 from sensor_msgs.msg import JointState
 
-# Import UR Toolbox and Scipy Rotation
-from scipy.spatial.transform import Rotation
+# Import UR Toolbox
 from robot_toolbox import UR_Toolbox, SE3
 
 class AdmittanceController():
@@ -40,18 +39,14 @@ class AdmittanceController():
         position_error[:3] = pos_1.t - pos_2.t
 
         # Convert Rotation Matrix to Quaternion
-        quat_1, quat_2 = Rotation.from_matrix(pos_1.R).as_quat(), Rotation.from_matrix(pos_2.R).as_quat()
+        quat_1, quat_2 = quat.as_float_array(quat.from_rotation_matrix(pos_1.R)), quat.as_float_array(quat.from_rotation_matrix(pos_2.R))
 
         # Check for Quaternion Sign
-        if np.dot(quat_2, quat_1) < 0: quat_1[1:] = -quat_1[1:]
+        if np.dot(quat_2, quat_1) < 0.0: quat_1 = -quat_1
 
-        # Compute Theta
-        theta = np.arccos(np.dot(quat_2, quat_1))
-        if theta == 0.0: dq  = [0.0, 0.0, 0.0, 0.0]
-        else: dq = theta / np.sin(theta) * (quat_1 - np.cos(theta) * quat_2)
-
-        # Compute Orientation Error
-        position_error[3:] = Rotation.from_quat(2 * dq * quat_2.conj()).as_rotvec()
+        # Compute Orientation Error (Quaternion Multiplication)
+        quaternion_difference = quat.from_rotation_matrix(np.linalg.inv(quat.as_rotation_matrix(quat.from_float_array(quat_1))) @ quat.as_rotation_matrix(quat.from_float_array(quat_2)))
+        position_error[3:] = - pos_1.R @ np.matrix.transpose(quat.as_float_array(quaternion_difference)[1:])
 
         return position_error
 
