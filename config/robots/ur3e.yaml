@@ -1,0 +1,48 @@
+# Node Name: handover_controller
+handover_controller:
+
+  ros__parameters:
+
+    # UR3e Parameters
+    payload:                3.0  # kg
+    reach:                  0.50 # m
+    tcp_speed:              1.00 # m/s
+    stopping_time:          0.10 # s
+    stopping_distance:      0.08 # m
+    position_repeatability: 0.03 # mm
+
+    # Power Parameters
+    maximum_power:         300     # W
+    operating_power:       100     # W
+    operating_temperature: [0, 50] # °C
+
+    # FT-Sensor  [Force, Torque] Performance Parameters
+    ft_range:     [30.0,  10.0] # N, Nm
+    ft_precision: [2.0,   0.1]  # N, Nm
+    ft_accuracy:  [3.5,   0.1]  # N, Nm
+
+    # DH Parameters for Calculations of Kinematics and Dynamics:
+    # https://www.universal-robots.com/articles/ur/application-installation/dh-parameters-for-calculations-of-kinematics-and-dynamics/
+
+    #	Kinematics  theta [rad]   a [m]      d [m]    alpha [rad]   Dynamics   Mass [kg]      Center of Mass [m]
+    #	Joint 1         0           0       0.15185      π/2         Link 1      1.98          [0, -0.02, 0]
+    #	Joint 2         0        -0.24355      0          0          Link 2      3.4445        [0.13, 0, 0.1157]
+    #	Joint 3         0        -0.2132       0          0          Link 3      1.437         [0.05, 0, 0.0238]
+    #	Joint 4         0           0       0.13105      π/2         Link 4      0.871         [0, 0, 0.01]
+    #	Joint 5         0           0       0.08535     -π/2         Link 5      0.805         [0, 0, 0.01]
+    #	Joint 6         0           0       0.0921        0          Link 6      0.261         [0, 0, -0.02]
+
+    # DH Parameters
+    a:     [0.0, -0.24355, -0.2132, 0.0, 0.0, 0.0]
+    d:     [0.15185, 0.0, 0.0, 0.13105, 0.08535, 0.0921]
+    alpha: [pi/2, 0.0, 0.0, pi/2, -pi/2, 0.0]
+    theta: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # Dynamic Parameters
+    mass: [1.98, 3.4445, 1.437, 0.871, 0.805, 0.261]
+    center_of_mass: [[0.0, -0.02, 0.0], [0.13, 0.0, 0.1157], [0.05, 0.0, 0.0238], [0.0, 0.0, 0.01], [0.0, 0.0, 0.01], [0.0, 0.0, -0.02]]
+
+    # Kinematic Limits
+    q_limits:      [2*pi, 2*pi, 2*pi, 2*pi, 2*pi, 2*pi] # rad
+    q_dot_limits:  [pi,   pi,   pi,   2*pi, 2*pi, 2*pi] # rad/s
+    q_ddot_limits: [0.20, 0.20, 0.20, 0.20, 0.20, 0.20] # rad/s^2
