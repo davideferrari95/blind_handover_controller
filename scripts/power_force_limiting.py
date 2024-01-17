@@ -37,12 +37,8 @@ class PowerForceLimitingController(Node):
         self.human_radius = human_radius
 
         # Robot Parameters
-        self.payload = robot_parameters['payload']
-        self.reach = robot_parameters['reach']
-        self.max_speed = robot_parameters['max_speed']
-        self.stopping_time = robot_parameters['stopping_time']
-        self.stopping_distance = robot_parameters['stopping_distance']
-        self.position_uncertainty = robot_parameters['position_uncertainty']
+        self.stopping_time, self.stopping_distance = robot_parameters['stopping_time'], robot_parameters['stopping_distance']
+        self.max_speed = max(robot_parameters['q_limits'])
 
         # ROS Subscribers
         self.human_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_client_node/polsino_dn/pose', self.humanPointCallback, 1)
