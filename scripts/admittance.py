@@ -1,5 +1,5 @@
 import numpy as np, quaternion as quat
-from typing import Tuple
+from typing import Tuple, List
 from termcolor import colored
 
 from rclpy.node import Rate
@@ -24,7 +24,6 @@ class AdmittanceController():
 
         # Admittance Parameters
         self.M, self.D, self.K = M, D, K
-        self.x_dot_last_cycle = np.zeros((6, ), dtype=np.float64)
 
     def position_difference(self, pos_1:SE3, pos_2:SE3) -> np.ndarray:
 
@@ -42,15 +41,19 @@ class AdmittanceController():
         quat_1, quat_2 = quat.as_float_array(quat.from_rotation_matrix(pos_1.R)), quat.as_float_array(quat.from_rotation_matrix(pos_2.R))
 
         # Check for Quaternion Sign
-        if np.dot(quat_2, quat_1) < 0.0: quat_1 = -quat_1
+        if np.dot(quat_2, quat_1) < 0: quat_1[1:] = -quat_1[1:]
 
-        # Compute Orientation Error (Quaternion Multiplication)
-        quaternion_difference = quat.from_rotation_matrix(np.linalg.inv(quat.as_rotation_matrix(quat.from_float_array(quat_1))) @ quat.as_rotation_matrix(quat.from_float_array(quat_2)))
-        position_error[3:] = - pos_1.R @ np.matrix.transpose(quat.as_float_array(quaternion_difference)[1:])
+        # Compute Theta
+        theta = np.arccos(np.dot(quat_2, quat_1))
+        if theta == 0.0: dq  = [0.0, 0.0, 0.0, 0.0]
+        else: dq = theta / np.sin(theta) * (quat_1 - np.cos(theta) * quat_2)
+
+        # Compute Orientation Error
+        position_error[3:] = quat.as_float_array(2 * quat.from_float_array(dq) * quat.from_float_array(quat_2).conj())[1:]
 
         return position_error
 
-    def compute_admittance_velocity(self, joint_states:JointState, external_force:Wrench, x_des:SE3, x_des_dot:np.ndarray, x_des_ddot:np.ndarray) -> np.ndarray:
+    def compute_admittance_velocity(self, joint_states:JointState, external_force:Wrench, old_joint_velocity:List[float], x_des:SE3, x_des_dot:np.ndarray, x_des_ddot:np.ndarray) -> np.ndarray:
 
         """ Compute Admittance Cartesian Velocity """
 
@@ -64,7 +67,7 @@ class AdmittanceController():
         elif self.debug: print(colored('x:         ', 'green'), f'{self.robot.matrix2array(x)}')
 
         # Compute Cartesian Velocity
-        x_dot: np.ndarray = J @ np.array(joint_states.velocity) if self.use_feedback_velocity else self.x_dot_last_cycle
+        x_dot: np.ndarray = J @ np.array(joint_states.velocity) if self.use_feedback_velocity else J @ np.asarray(old_joint_velocity)
         if self.complete_debug: print(colored('x_dot: ', 'green'), f'{type(x_dot)} | {x_dot.shape} \n {x_dot}\n')
         elif self.debug: print(colored('x_dot:     ', 'green'), f'{x_dot}')
 
@@ -81,13 +84,7 @@ class AdmittanceController():
         elif self.debug: print(colored('new x_dot: ', 'green'), f'{new_x_dot}\n')
 
         # Compute Joint Velocity (q_dot = J^-1 * new_x_dot)
-        q_dot: np.ndarray = self.robot.JacobianInverse(joint_states.position) @ new_x_dot
-
-        # TODO: Limit System Dynamic
-        # limited_q_dot, limited_x_dot = self.limit_joint_dynamics(joint_states, q_dot)
-
-        # Update `x_dot_last_cycle`
-        self.x_dot_last_cycle = new_x_dot
+        q_dot: np.ndarray = np.linalg.inv(J) @ new_x_dot
 
         return q_dot
 
@@ -126,27 +123,3 @@ class AdmittanceController():
         x_act_ddot = self.robot.Jacobian(joint_states.position) @ np.array(joint_states.effort) + self.robot.JacobianDot(joint_states.position, joint_states.velocity) @ np.array(joint_states.velocity)
 
         return x_act, x_act_dot, x_act_ddot
-
-    def limit_joint_dynamics(self, joint_states:JointState, q_dot:np.ndarray) -> np.ndarray:
-
-        """ Limit Joint Dynamics """
-
-        # TODO: Limit Joint Velocity and Acceleration by Scaling Factor
-
-        # Type Assertions
-        assert q_dot.shape == (6,), f'Joint Velocity Must be a 6x1 Vector | Shape: {q_dot.shape}'
-        if self.complete_debug: print(f'q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
-        elif self.debug: print(f'q_dot: {q_dot}\n')
-
-        # TODO: Limit Joint Velocity - Max Manipulator Joint Velocity
-        q_dot = np.array([np.sign(vel) * max_vel if abs(vel) > max_vel else vel for vel, max_vel in zip(q_dot, self.maximum_velocity)])
-
-        # TODO: Limit Joint Acceleration - Max Manipulator Joint Acceleration
-        q_dot = np.array([joint_vel + np.sign(vel - joint_vel) * max_acc * self.rate._timer.timer_period_ns * 1e-9
-                    if abs(vel - joint_vel) > max_acc * self.rate._timer.timer_period_ns * 1e-9 else vel 
-                    for vel, joint_vel, max_acc in zip(q_dot, joint_states.velocity, self.maximum_velocity)])
-
-        if self.complete_debug: print(f'Limiting V_Max -> q_dot: {type(q_dot)} | {q_dot.shape} \n {q_dot}\n')
-        elif self.debug: print(f'Limiting V_Max -> q_dot: {q_dot}\n')
-
-        return q_dot
