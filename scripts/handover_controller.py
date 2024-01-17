@@ -2,13 +2,13 @@
 
 import numpy as np
 from math import pi
-from typing import List
+from typing import List, Any
 from termcolor import colored
 import threading, signal, time
 
 # Import ROS2 Libraries
 import rclpy
-from rclpy.node import Node
+from rclpy.node import Node, Parameter
 
 # Import ROS Messages, Services, Actions
 from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
@@ -26,6 +26,8 @@ from power_force_limiting import PowerForceLimitingController
 def signal_handler(sig, frame):
 
     """ UR Stop Signal Handler """
+
+    time.sleep(1)
 
     # Initialize `rclpy` if not initialized
     if not rclpy.ok(): rclpy.init()
@@ -56,8 +58,9 @@ class Handover_Controller(Node):
 
     # Initialize Subscriber Variables
     trajectory_executed, goal_received = False, False
-    handover_cartesian_goal, joint_states = Pose(), JointState()
+    handover_cartesian_goal = Pose()
     joint_states, ft_sensor_data = JointState(), Wrench()
+    desired_joint_velocity = [0.0] * 6
 
     # FIX: Remove Pause OS Variable
     pause_os = False
@@ -82,28 +85,25 @@ class Handover_Controller(Node):
         self.declare_parameters('', [('use_feedback_velocity', False), ('sim', False), ('complete_debug', False), ('debug', False)])
 
         # Declare Robot Parameters
-        self.declare_parameters('', [('robot', 'ur10e'), ('payload', 5.0), ('reach', 0.85), ('max_speed', 180.0)]) # kg, m, deg/s
-        self.declare_parameters('', [('stopping_time', 0.150), ('stopping_distance', 0.20), ('position_uncertainty', 0.03)]) # s, m, mm
+        self.declare_parameters('', [('robot', 'ur10e'), ('payload', 12.5), ('reach', 1.30), ('tcp_speed', 1.0)]) # kg, m, m/s
+        self.declare_parameters('', [('stopping_time', 0.17), ('stopping_distance', 0.25), ('position_repeatability', 0.05)]) # s, m, mm
+        self.declare_parameters('', [('maximum_power', 615), ('operating_power', 350), ('operating_temperature', [0, 50])]) # W, W, °C
+        self.declare_parameters('', [('ft_range', [100.0, 10.0]), ('ft_precision', [5.0, 0.2]), ('ft_accuracy', [5.5, 0.5])]) # N, nm
+        self.declare_parameters('', [('a', [0.0, -0.6127, -0.57155, 0.0, 0.0, 0.0]), ('d', [0.1807, 0.0, 0.0, 0.17415, 0.11985, 0.11655]), ('alpha', [pi/2, 0.0, 0.0, pi/2, -pi/2, 0.0]), ('theta', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])]) # DH Parameters
+        self.declare_parameters('', [('mass', [7.369, 13.051, 3.989, 2.1, 1.98, 0.615]), ('center_of_mass', [0.021, 0.000, 0.027, 0.38, 0.000, 0.158, 0.24, 0.000, 0.068, 0.000, 0.007, 0.018, 0.000, 0.007, 0.018, 0.0, 0.0, -0.026])])  # Dynamic Parameters
+        self.declare_parameters('', [('q_limits', [2*pi, 2*pi, 2*pi, 2*pi, 2*pi, 2*pi]), ('q_dot_limits', [2*pi/3, 2*pi/3, pi, pi, pi, pi]), ('q_ddot_limits', [0.20, 0.20, 0.20, 0.20, 0.20, 0.20])])                                # Joint, Speed, Acceleration Limits
 
         # Read Parameters
-        self.force_dead_zone  = self.get_parameter('force_dead_zone').get_parameter_value().double_value
-        self.torque_dead_zone = self.get_parameter('torque_dead_zone').get_parameter_value().double_value
-        use_feedback_velocity = self.get_parameter('use_feedback_velocity').get_parameter_value().bool_value
-        self.complete_debug   = self.get_parameter('complete_debug').get_parameter_value().bool_value
-        self.debug            = self.get_parameter('debug').get_parameter_value().bool_value
-        self.sim              = self.get_parameter('sim').get_parameter_value().bool_value
-        human_radius          = self.get_parameter('human_radius').get_parameter_value().double_value
-        robot                 = self.get_parameter('robot').get_parameter_value().string_value
+        self.force_dead_zone, self.torque_dead_zone = self.get_parameter_value('force_dead_zone'), self.get_parameter_value('torque_dead_zone')
+        self.sim, use_feedback_velocity = self.get_parameter_value('sim'), self.get_parameter_value('use_feedback_velocity')
+        self.complete_debug, self.debug = self.get_parameter_value('complete_debug'), self.get_parameter_value('debug')
+        human_radius = self.get_parameter_value('human_radius')
 
         # Read Robot Parameters
-        robot_parameters = {
-            'payload':              self.get_parameter('payload').get_parameter_value().double_value,
-            'reach':                self.get_parameter('reach').get_parameter_value().double_value,
-            'max_speed':            self.get_parameter('max_speed').get_parameter_value().double_value,
-            'stopping_time':        self.get_parameter('stopping_time').get_parameter_value().double_value,
-            'stopping_distance':    self.get_parameter('stopping_distance').get_parameter_value().double_value,
-            'position_uncertainty': self.get_parameter('position_uncertainty').get_parameter_value().double_value,
-        }
+        robot_parameters = {param_name : self.get_parameter_value(param_name) for param_name in
+                            ['robot', 'payload', 'reach', 'tcp_speed', 'stopping_time', 'stopping_distance', 'position_repeatability',
+                            'maximum_power', 'operating_power', 'operating_temperature', 'ft_range', 'ft_precision', 'ft_accuracy',
+                            'a', 'd', 'alpha', 'theta', 'mass', 'center_of_mass', 'q_limits', 'q_dot_limits', 'q_ddot_limits']}
 
         # Print Parameters
         print(colored('\nPFL Controller Parameters:', 'yellow'), '\n')
@@ -112,7 +112,7 @@ class Handover_Controller(Node):
         print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
         print(colored('    sim:', 'green'),                   f'\t\t\t{self.sim}')
         print(colored('    human_radius:', 'green'),          f'\t\t{human_radius}')
-        print(colored('    robot:', 'green'),                 f'\t\t\t"{robot}"\n')
+        print(colored('    robot:', 'green'),                 f'\t\t\t"{robot_parameters["robot"]}"\n')
 
         # Publishers
         self.joint_velocity_publisher   = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
@@ -126,18 +126,14 @@ class Handover_Controller(Node):
 
         # Initialize Robot and Toolbox Classes
         self.move_robot = UR_RTDE_Move()
-        self.robot_toolbox = UR_Toolbox(robot, self.complete_debug, self.debug)
+        self.robot_toolbox = UR_Toolbox(robot_parameters, True, self.complete_debug, self.debug)
 
         # Initialize Admittance Controller
         self.admittance_controller = AdmittanceController(
-            self.robot_toolbox, self.rate,
-            M = self.get_parameter('admittance_mass').get_parameter_value().double_array_value * np.eye(6),
-            D = self.get_parameter('admittance_damping').get_parameter_value().double_array_value * np.eye(6),
-            K = self.get_parameter('admittance_stiffness').get_parameter_value().double_array_value * np.eye(6),
-            max_vel = self.get_parameter('maximum_velocity').get_parameter_value().double_array_value,
-            max_acc = self.get_parameter('maximum_acceleration').get_parameter_value().double_array_value,
-            admittance_weight = self.get_parameter('admittance_weight').get_parameter_value().double_value,
-            use_feedback_velocity = False if self.sim else use_feedback_velocity,
+            self.robot_toolbox, self.rate, use_feedback_velocity = False if self.sim else use_feedback_velocity,
+            M = self.get_parameter_value('admittance_mass') * np.eye(6), D = self.get_parameter_value('admittance_damping') * np.eye(6),
+            K = self.get_parameter_value('admittance_stiffness') * np.eye(6), admittance_weight = self.get_parameter_value('admittance_weight'),
+            max_vel = self.get_parameter_value('maximum_velocity'), max_acc = self.get_parameter_value('maximum_acceleration'),
             complete_debug = self.complete_debug, debug = self.debug
         )
 
@@ -253,7 +249,7 @@ class Handover_Controller(Node):
 
         # UR10e
         goal = [0.15, -1.71, 2.28, -2.13, -1.67, 0.39]
-        # goal = [0.45, -2.30, 2.28, -2.13, -1.67, 0.39]
+        goal = [0.45, -2.30, 2.28, -2.13, -1.67, 0.39]
 
         time.sleep(1)
         print(f'JointState Position: {self.joint_states.position}\n')
@@ -266,24 +262,28 @@ class Handover_Controller(Node):
         print (colored('Trajectory Accelerations:', 'green'), f'\n\n {trajectory.qdd}\n')
 
         # Convert Joint Trajectory to Cartesian Trajectory
-        cartesian_trajectory = self.robot_toolbox.joint2cartesianTrajectory(trajectory)
+        start = time.time()
+        cartesian_trajectory, i = self.robot_toolbox.joint2cartesianTrajectory(trajectory), 0
+        print(colored(f'Trajectory Converted\n', 'green'))
+        print(time.time() - start)
 
-        for x_des, x_des_dot, x_des_ddot in zip(cartesian_trajectory[0], cartesian_trajectory[1], cartesian_trajectory[2]):
+        while (rclpy.ok()):
 
-            # start = time.time()
+            #     start = time.time()
 
-            # Break if ROS is not Ok
-            if not rclpy.ok(): break
+            # Get Next Cartesian Goal | Increment Counter only if i < last trajectory point
+            cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
+            if i < cartesian_trajectory[1].shape[0] - 1: i += 1
 
             # Compute Admittance Velocity
-            desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, x_des, x_des_dot, x_des_ddot)
-            # desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, Wrench(), x_des, x_des_dot, x_des_ddot)
+            self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.desired_joint_velocity, *cartesian_goal)
+            # self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, Wrench(), self.desired_joint_velocity, *cartesian_goal)
 
             # Compute PFL Velocity
-            # desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(desired_joint_velocity,  self.joint_states)
+            # self.desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(self.desired_joint_velocity,  self.joint_states)
 
             # Publish Joint Velocity
-            self.publishRobotVelocity(desired_joint_velocity)
+            self.publishRobotVelocity(self.desired_joint_velocity)
 
             # Sleep to ROS Rate
             self.rate.sleep()
@@ -379,6 +379,26 @@ class Handover_Controller(Node):
 
         return False
 
+    def get_parameter_value(self, parameter_name:str) -> Any:
+
+        """ Get Parameter Value """
+
+        # Get Parameter Object
+        param = self.get_parameter(parameter_name)
+
+        # Return Parameter Value - Based on Type
+        if   param.type_ == Parameter.Type.NOT_SET:       return None
+        elif param.type_ == Parameter.Type.BOOL:          return self.get_parameter(parameter_name).get_parameter_value().bool_value
+        elif param.type_ == Parameter.Type.INTEGER:       return self.get_parameter(parameter_name).get_parameter_value().integer_value
+        elif param.type_ == Parameter.Type.DOUBLE:        return self.get_parameter(parameter_name).get_parameter_value().double_value
+        elif param.type_ == Parameter.Type.STRING:        return self.get_parameter(parameter_name).get_parameter_value().string_value
+        elif param.type_ == Parameter.Type.BYTE_ARRAY:    return self.get_parameter(parameter_name).get_parameter_value().byte_array_value
+        elif param.type_ == Parameter.Type.BOOL_ARRAY:    return self.get_parameter(parameter_name).get_parameter_value().bool_array_value
+        elif param.type_ == Parameter.Type.INTEGER_ARRAY: return self.get_parameter(parameter_name).get_parameter_value().integer_array_value
+        elif param.type_ == Parameter.Type.DOUBLE_ARRAY:  return self.get_parameter(parameter_name).get_parameter_value().double_array_value
+        elif param.type_ == Parameter.Type.STRING_ARRAY:  return self.get_parameter(parameter_name).get_parameter_value().string_array_value
+        else: raise ValueError(f'Parameter Type Not Supported: {param.type_}')
+
     def spinner(self):
 
         """ Main Spinner """
@@ -400,20 +420,22 @@ class Handover_Controller(Node):
 
             # Get Next Cartesian Goal | Increment Counter only if i < last trajectory point
             cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
-            if i < cartesian_trajectory[0].shape[0] - 1: i += 1
+            if i < cartesian_trajectory[1].shape[0] - 1: i += 1
 
             # Compute Admittance Velocity
-            desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, *cartesian_goal)
+            self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.desired_joint_velocity, *cartesian_goal)
 
             # Compute PFL Velocity
-            desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(desired_joint_velocity,  self.joint_states)
+            self.desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(self.desired_joint_velocity,  self.joint_states)
 
             # Publish Joint Velocity
-            self.publishRobotVelocity(desired_joint_velocity)
+            self.publishRobotVelocity(self.desired_joint_velocity)
 
             # Sleep to ROS Rate
             self.rate.sleep()
 
+        # Stop Robot
+        self.publishRobotVelocity([0.0] * 6)
         self.goal_received = False
 
 if __name__ == '__main__':
