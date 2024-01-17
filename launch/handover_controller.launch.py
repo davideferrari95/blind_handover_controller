@@ -25,7 +25,7 @@ def create_handover_controller_node(context):
 
     # Robot Config File Path
     robot = LaunchConfiguration('robot').perform(context)
-    if robot in ['ur5e','ur10e']: robot_config = os.path.join(get_package_share_directory('handover_controller'), 'config',f'{robot}.yaml')
+    if robot in ['ur5e','ur10e']: robot_config = os.path.join(get_package_share_directory('handover_controller'), 'config',f'robots/{robot}.yaml')
     else: raise ValueError(f'No config file for robot name: {robot}')
 
     # Python Node + Parameters + YAML Config File
