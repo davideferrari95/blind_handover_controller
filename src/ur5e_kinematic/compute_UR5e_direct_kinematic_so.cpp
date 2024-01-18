@@ -12,29 +12,29 @@ double q3 = q[3];
 double q4 = q[4];
 double q5 = q[5];
 
-T(0,0) = cos(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0))-sin(q5)*(sin(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)*1.0+cos(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.0;
+T(0,0) = cos(q5)*(sin(q0)*sin(q4)+cos(q1+q2+q3)*cos(q0)*cos(q4))-sin(q1+q2+q3)*cos(q0)*sin(q5)*1.0;
 
-T(0,1) = sin(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0))*-1.0-cos(q5)*(sin(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)*1.0+cos(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.0;
+T(0,1) = sin(q5)*(sin(q0)*sin(q4)+cos(q1+q2+q3)*cos(q0)*cos(q4))*-1.0-sin(q1+q2+q3)*cos(q0)*cos(q5)*1.0;
 
-T(0,2) = cos(q4)*sin(q0)-sin(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.0;
+T(0,2) = cos(q4)*sin(q0)-cos(q1+q2+q3)*cos(q0)*sin(q4);
 
-T(0,3) = sin(q0)*1.3333E-1-cos(q0)*cos(q1)*4.25E-1+cos(q4)*sin(q0)*9.96E-2-sin(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*9.96E-2+sin(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)*9.97E-2+cos(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*9.97E-2-cos(q0)*cos(q1)*cos(q2)*3.922E-1+cos(q0)*sin(q1)*sin(q2)*3.922E-1;
+T(0,3) = sin(q0)*1.3333E-1+cos(q4)*sin(q0)*9.96E-2+sin(q1+q2+q3)*cos(q0)*9.97E-2-cos(q0)*(cos(q1+q2)*1.961E+3+cos(q1)*2.125E+3)*2.0E-4-cos(q1+q2+q3)*cos(q0)*sin(q4)*9.96E-2;
 
-T(1,0) = sin(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0)*-1.0-cos(q5)*(cos(q0)*sin(q4)*1.0+cos(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*1.0)*1.0;
+T(1,0) = cos(q5)*(cos(q0)*sin(q4)*1.0-cos(q1+q2+q3)*cos(q4)*sin(q0)*1.0)*-1.0-sin(q1+q2+q3)*sin(q0)*sin(q5)*1.0;
 
-T(1,1) = cos(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0)*-1.0+sin(q5)*(cos(q0)*sin(q4)*1.0+cos(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*1.0);
+T(1,1) = sin(q5)*(cos(q0)*sin(q4)*1.0-cos(q1+q2+q3)*cos(q4)*sin(q0)*1.0)-sin(q1+q2+q3)*cos(q5)*sin(q0)*1.0;
 
-T(1,2) = cos(q0)*cos(q4)*-1.0+sin(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0);
+T(1,2) = -cos(q0)*cos(q4)-cos(q1+q2+q3)*sin(q0)*sin(q4);
 
-T(1,3) = cos(q0)*-1.3333E-1-cos(q0)*cos(q4)*9.96E-2+cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*9.97E-2-cos(q1)*sin(q0)*4.25E-1-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*9.97E-2+sin(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*9.96E-2+sin(q0)*sin(q1)*sin(q2)*3.922E-1-cos(q1)*cos(q2)*sin(q0)*3.922E-1;
+T(1,3) = cos(q0)*-1.3333E-1-cos(q0)*cos(q4)*9.96E-2+sin(q1+q2+q3)*sin(q0)*9.97E-2-sin(q0)*(cos(q1+q2)*1.961E+3+cos(q1)*2.125E+3)*2.0E-4-cos(q1+q2+q3)*sin(q0)*sin(q4)*9.96E-2;
 
-T(2,0) = sin(q5)*(cos(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0)*1.0-sin(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)*1.0)+cos(q4)*cos(q5)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0));
+T(2,0) = cos(q1+q2+q3)*sin(q5)+sin(q1+q2+q3)*cos(q4)*cos(q5);
 
-T(2,1) = cos(q5)*(cos(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0)*1.0-sin(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)*1.0)-cos(q4)*sin(q5)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0))*1.0;
+T(2,1) = cos(q1+q2+q3)*cos(q5)-sin(q1+q2+q3)*cos(q4)*sin(q5)*1.0;
 
-T(2,2) = sin(q4)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0))*-1.0;
+T(2,2) = sin(q1+q2+q3)*sin(q4)*-1.0;
 
-T(2,3) = sin(q1)*-4.25E-1-cos(q1)*sin(q2)*3.922E-1-cos(q2)*sin(q1)*3.922E-1-sin(q4)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0))*9.96E-2-cos(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0)*9.97E-2+sin(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)*9.97E-2+1.625E-1;
+T(2,3) = cos(q1+q2+q3)*-9.97E-2-sin(q1+q2)*3.922E-1-sin(q1)*4.25E-1-sin(q1+q2+q3)*sin(q4)*9.96E-2+1.625E-1;
 
 T(3,0) = 0.0;
 

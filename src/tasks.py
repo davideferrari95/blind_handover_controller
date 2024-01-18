@@ -72,4 +72,4 @@ SOURCES = [
 def build(ctx):
 
     for i in range(len(LIB_NAMES)):
-        ctx.run(f"g++ -I{EIGEN_PATH} -shared -o {LIB_NAMES[i]} -fPIC {SOURCES[i]}")
+        ctx.run(f"g++ -o3 -I{EIGEN_PATH} -shared -o {LIB_NAMES[i]} -fPIC {SOURCES[i]}")
