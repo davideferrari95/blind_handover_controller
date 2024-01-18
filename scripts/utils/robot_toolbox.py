@@ -35,17 +35,6 @@ class UR_Toolbox():
         # Set Debug Flags
         self.complete_debug, self.debug = complete_debug, debug or complete_debug
 
-    def test(self):
-
-        import time
-
-        # Plan Trajectory
-        traj = self.plan_trajectory([0, -pi/2, pi/2, -pi/2, -pi/2, 0], [0, -pi/2, pi/2, -pi/2, -pi/2, 0], duration=10, sampling_freq=500)
-
-        start = time.time()
-        self.joint2cartesianTrajectory(traj)
-        print(f'Elapsed Time - C++ Wrapper : {time.time() - start}')
-
     def create_robot(self, robot_parameters:dict, symbolic:bool=False) -> DHRobot:
 
         """ Create Robot Model """
