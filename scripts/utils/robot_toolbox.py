@@ -18,7 +18,6 @@ from geometry_msgs.msg import Pose
 
 # Manage Path
 import sys, pathlib
-FUNCTIONS_PATH = f'{str(pathlib.Path(__file__).resolve().parents[2])}/functions'
 sys.path.append(f'{str(pathlib.Path(__file__).resolve().parents[1])}')
 
 class UR_Toolbox():
