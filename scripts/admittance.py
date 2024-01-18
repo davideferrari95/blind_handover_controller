@@ -7,7 +7,7 @@ from geometry_msgs.msg import Wrench
 from sensor_msgs.msg import JointState
 
 # Import UR Toolbox
-from robot_toolbox import UR_Toolbox, SE3
+from utils.robot_toolbox import UR_Toolbox, SE3
 
 class AdmittanceController():
 

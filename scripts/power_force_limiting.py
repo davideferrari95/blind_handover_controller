@@ -11,7 +11,7 @@ from rclpy.node import Node, Rate
 from geometry_msgs.msg import PoseStamped, Vector3
 from sensor_msgs.msg import JointState
 
-from robot_toolbox import UR_Toolbox
+from utils.robot_toolbox import UR_Toolbox
 
 class PowerForceLimitingController(Node):
 
