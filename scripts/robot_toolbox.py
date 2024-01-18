@@ -1,33 +1,286 @@
 from math import pi
 from termcolor import colored
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Callable
 
+# Import Peter Corke Robotics Toolbox
 import roboticstoolbox as rtb, numpy as np
+from roboticstoolbox.robot import DHRobot, RevoluteDH
 from roboticstoolbox.robot.IK import IKSolution
 from roboticstoolbox.tools.types import ArrayLike, NDArray
 from roboticstoolbox.tools.trajectory import Trajectory, jtraj, ctraj
 
+# Import Sympy
+import sympy as sym
+from sympy import lambdify
+
+# Import Spatial Math
 from spatialmath import SE3, SO3
 from scipy.spatial.transform import Rotation
-from spatialmath.base.transforms3d import tr2rt, rt2tr
 
+# Import ROS2 Libraries
 from geometry_msgs.msg import Pose
+
+# Get Functions Path
+import sys, pathlib
+FUNCTIONS_PATH = f'{str(pathlib.Path(__file__).resolve().parents[2])}/functions'
+sys.path.append(f'{str(pathlib.Path(__file__).resolve().parents[1])}')
 
 class UR_Toolbox():
 
-    def __init__(self, robot_model='ur10e', complete_debug:bool=False, debug:bool=False):
+    def __init__(self, robot_parameters:dict, sym:bool=True, complete_debug:bool=False, debug:bool=False):
+
+        """ Initialize Robot Toolbox """
 
         # Create Robot - Robotic Toolbox
-        self.robot = rtb.models.UR10() if robot_model.lower() in ['ur10','ur10e'] else rtb.models.UR5() if robot_model.lower() in ['ur5','ur5e'] else None
-        if self.robot is None: raise Exception(f"Robot Model {robot_model} not supported")
+        self.robot = self.create_robot(robot_parameters)
 
-        # FIX: Initialize Jacobian (print)
-        self.Jacobian([0,0,0,0,0,0])
-        if debug: print(f'ee_links[0]: {self.robot.ee_links[0]}\n')
-        else: print()
+        # Create Symbolic Function (if `sym`) - Speed Up Computation
+        # self.fkine, self.J, self.J_dot = self.load_symbolic_functions(robot_parameters) if sym else self.use_toolbox_functions()
 
         # Set Debug Flags
         self.complete_debug, self.debug = complete_debug, debug or complete_debug
+
+    def test(self):
+
+        import time, dill
+        dill.settings['recurse'] = True
+        ROBOT_PATH = f'{FUNCTIONS_PATH}/ur5e'
+        # ROBOT_PATH = f'{FUNCTIONS_PATH}/ur10e'
+
+        # Plan Trajectory
+        traj = self.plan_trajectory([0, -pi/2, pi/2, -pi/2, -pi/2, 0], [0, -pi/2, pi/2, -pi/2, -pi/2, 0], duration=10, sampling_freq=500)
+
+        from utils.kinematic_wrapper import Kinematic_Wrapper
+        kin = Kinematic_Wrapper()
+        self.fkine = kin.compute_direct_kinematic
+        self.J = kin.compute_jacobian
+        self.J_dot = kin.compute_jacobian_dot
+
+        start = time.time()
+        self.joint2cartesianTrajectory(traj)
+        print(f'Elapsed Time - C++ Wrapper : {time.time() - start}')
+
+        self.fkine = dill.load(open(f"{ROBOT_PATH}/FK_lambdified", "rb"))
+        self.J = dill.load(open(f"{ROBOT_PATH}/J_lambdified", "rb"))
+
+        start = time.time()
+        self.joint2cartesianTrajectory(traj)
+        print(f'Elapsed Time - Lambdified: {time.time() - start}')
+
+        self.fkine = self.robot.fkine
+        self.J= self.robot.jacob0
+
+        start = time.time()
+        self.joint2cartesianTrajectory(traj)
+        print(f'Elapsed Time - Toolbox: {time.time() - start}')
+
+        # self.fkine = dill.load(open(f"{ROBOT_PATH}/FK_lambdified_numpy", "rb"))
+        # self.J = dill.load(open(f"{ROBOT_PATH}/J_lambdified_numpy", "rb"))
+
+        # start = time.time()
+        # self.joint2cartesianTrajectory(traj)
+        # print(f'Elapsed Time - Lambdified Numpy: {time.time() - start}')
+
+        # self.fkine = dill.load(open(f"{ROBOT_PATH}/FK_jit", "rb"))
+        # self.J = dill.load(open(f"{ROBOT_PATH}/J_jit", "rb"))
+
+        # start = time.time()
+        # self.joint2cartesianTrajectory(traj)
+        # print(f'Elapsed Time - Lambdified Jit: {time.time() - start}')
+
+        # self.fkine = dill.load(open(f"{ROBOT_PATH}/FK_njit", "rb"))
+        # self.J = dill.load(open(f"{ROBOT_PATH}/J_njit", "rb"))
+
+        # start = time.time()
+        # self.joint2cartesianTrajectory(traj)
+        # print(f'Elapsed Time - Lambdified nJit: {time.time() - start}')
+
+        # self.fkine = dill.load(open(f"{ROBOT_PATH}/FK_jit_numpy", "rb"))
+        # self.J = dill.load(open(f"{ROBOT_PATH}/J_jit_numpy", "rb"))
+
+        # start = time.time()
+        # self.joint2cartesianTrajectory(traj)
+        # print(f'Elapsed Time - Lambdified Jit numpy: {time.time() - start}')
+
+        # self.fkine = dill.load(open(f"{ROBOT_PATH}/FK_njit_numpy", "rb"))
+        # self.J = dill.load(open(f"{ROBOT_PATH}/J_njit_numpy", "rb"))
+
+        # start = time.time()
+        # self.joint2cartesianTrajectory(traj)
+        # print(f'Elapsed Time - Lambdified nJit numpy: {time.time() - start}')
+
+    def create_robot(self, robot_parameters:dict, symbolic:bool=False) -> DHRobot:
+
+        """ Create Robot Model """
+
+        # Robot Parameters
+        robot_model = robot_parameters['robot']
+        payload, reach, tcp_speed = robot_parameters['payload'], robot_parameters['reach'], robot_parameters['tcp_speed']
+        stopping_time, stopping_distance, position_repeatability = robot_parameters['stopping_time'], robot_parameters['stopping_distance'], robot_parameters['position_repeatability']
+        maximum_power, operating_power,operating_temperature = robot_parameters['maximum_power'], robot_parameters['operating_power'], robot_parameters['operating_temperature']
+        ft_range, ft_precision, ft_accuracy = robot_parameters['ft_range'], robot_parameters['ft_precision'], robot_parameters['ft_accuracy']
+        a, d, alpha, offset = robot_parameters['a'], robot_parameters['d'], robot_parameters['alpha'], robot_parameters['theta']
+        mass, center_of_mass = robot_parameters['mass'], [robot_parameters['center_of_mass'][i:i+3] for i in range(0, len(robot_parameters['center_of_mass']), 3)]
+        q_lim, qd_lim, qdd_lim = robot_parameters['q_limits'], robot_parameters['q_dot_limits'], robot_parameters['q_ddot_limits']
+
+        # Create Robot Model
+        return DHRobot(
+            [RevoluteDH(a=a_n, d=d_n, alpha=alpha_n, offset=offset_n, q_lim=[-q_lim_n, q_lim_n], m=mass_n, r=center_of_mass_n.tolist()) 
+             for a_n, d_n, alpha_n, offset_n, mass_n, center_of_mass_n, q_lim_n in zip(a, d, alpha, offset, mass, center_of_mass, q_lim)],
+            name=robot_model, manufacturer='Universal Robot', symbolic=symbolic)
+
+    def create_symbolic_functions(self, robot_parameters:dict, ROBOT_PATH) -> Tuple[Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray]]:
+
+        """ Create FK, J, J_dot Symbolic Functions """
+
+        # Create Symbolic Robot Model
+        symbolic_robot = self.create_robot(robot_parameters, symbolic=True)
+
+        # Create Symbols
+        q, q_dot = sym.symbols("q:6"), sym.symbols("q_dot:6")
+
+        import dill, numba
+        dill.settings['recurse'] = True
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Compute Jacobian, Jacobian Derivative and Forward Kinematic
+        FK, J = symbolic_robot.fkine(q).A, symbolic_robot.jacob0(q)
+        dill.dump(FK, open(f"{ROBOT_PATH}/FK", "wb")); dill.dump(J, open(f"{ROBOT_PATH}/J", "wb"))
+        print("Done - FK, J")
+
+        # Simplify FK, J
+        FK_simplified, J_simplified = sym.simplify(symbolic_robot.fkine(q).A), sym.simplify(symbolic_robot.jacob0(q))
+        dill.dump(FK_simplified, open(f"{ROBOT_PATH}/FK_simplified", "wb")); dill.dump(J_simplified, open(f"{ROBOT_PATH}/J_simplified", "wb"))
+        print("Done - FK, J - Simplified")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Lambdify FK, J
+        FK_lambdified, J_lambdified = lambdify([q], FK_simplified.tolist()), lambdify([q], J_simplified.tolist())
+        dill.dump(FK_lambdified, open(f"{ROBOT_PATH}/FK_lambdified", "wb")); dill.dump(J_lambdified, open(f"{ROBOT_PATH}/J_lambdified", "wb"))
+        print("Done - FK, J - Lambdified")
+
+        # Lambdify FK, J - Numpy
+        FK_lambdified_numpy, J_lambdified_numpy = lambdify([q], FK_simplified.tolist(), "numpy"), lambdify([q], J_simplified.tolist(), "numpy")
+        dill.dump(FK_lambdified_numpy, open(f"{ROBOT_PATH}/FK_lambdified_numpy", "wb")); dill.dump(J_lambdified_numpy, open(f"{ROBOT_PATH}/J_lambdified_numpy", "wb"))
+        print("Done - FK, J - Lambdified numpy")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Numba jit FK, J
+        FK_jit, J_jit = numba.jit(FK_lambdified), numba.jit(J_lambdified)
+        dill.dump(FK_jit, open(f"{ROBOT_PATH}/FK_jit", "wb")); dill.dump(J_jit, open(f"{ROBOT_PATH}/J_jit", "wb"))
+        print("Done - FK, J - Numba jit")
+
+        # Numba njit FK, J
+        FK_njit, J_njit = numba.njit(FK_lambdified), numba.njit(J_lambdified)
+        dill.dump(FK_njit, open(f"{ROBOT_PATH}/FK_njit", "wb")); dill.dump(J_njit, open(f"{ROBOT_PATH}/J_njit", "wb"))
+        print("Done - FK, J - Numba njit")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Numba jit FK, J - Numpy
+        FK_jit_numpy, J_jit_numpy = numba.jit(FK_lambdified_numpy), numba.jit(J_lambdified_numpy)
+        dill.dump(FK_jit_numpy, open(f"{ROBOT_PATH}/FK_jit_numpy", "wb")); dill.dump(J_jit_numpy, open(f"{ROBOT_PATH}/J_jit_numpy", "wb"))
+        print("Done - FK, J - Numba jit numpy")
+
+        # Numba njit FK, J - Numpy
+        FK_njit_numpy, J_njit_numpy = numba.njit(FK_lambdified_numpy), numba.njit(J_lambdified_numpy)
+        dill.dump(FK_njit_numpy, open(f"{ROBOT_PATH}/FK_njit_numpy", "wb")); dill.dump(J_njit_numpy, open(f"{ROBOT_PATH}/J_njit_numpy", "wb"))
+        print("Done - FK, J - Numba njit numpy")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Compute Jacobian Derivative
+        J_dot = sym.diff(J, [q])
+        dill.dump(J_dot, open(f"{ROBOT_PATH}/J_dot", "wb"))
+        print("Done - J_dot")
+
+        # Simplify Jacobian Derivative
+        J_dot_simplified = sym.simplify(J_dot)
+        dill.dump(J_dot_simplified, open(f"{ROBOT_PATH}/J_dot_simplified", "wb"))
+        print("Done - J_dot - Simplified")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Lambdify Jacobian Derivative
+        J_dot_lambdified = lambdify([q], J_dot.tolist())
+        dill.dump(J_dot_lambdified, open(f"{ROBOT_PATH}/J_dot_lambdified", "wb"))
+        print("Done - J_dot - Lambdified")
+
+        # Lambdify Jacobian Derivative - Numpy
+        J_dot_lambdified_numpy = lambdify([q], J_dot.tolist(), "numpy")
+        dill.dump(J_dot_lambdified_numpy, open(f"{ROBOT_PATH}/J_dot_lambdified_numpy", "wb"))
+        print("Done - J_dot - Lambdified numpy")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Numba jit Jacobian Derivative
+        J_dot_jit = numba.jit(J_dot_lambdified)
+        dill.dump(J_dot_jit, open(f"{ROBOT_PATH}/J_dot_jit", "wb"))
+        print("Done - J_dot - Numba jit")
+
+        # Numba njit Jacobian Derivative
+        J_dot_njit = numba.njit(J_dot_lambdified)
+        dill.dump(J_dot_njit, open(f"{ROBOT_PATH}/J_dot_njit", "wb"))
+        print("Done - J_dot - Numba njit")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Numba jit Jacobian Derivative - Numpy
+        J_dot_jit_numpy = numba.jit(J_dot_lambdified)
+        dill.dump(J_dot_jit_numpy, open(f"{ROBOT_PATH}/J_dot_jit_numpy", "wb"))
+        print("Done - J_dot - Numba jit numpy")
+
+        # Numba njit Jacobian Derivative - Numpy
+        J_dot_njit_numpy = numba.njit(J_dot_lambdified_numpy)
+        dill.dump(J_dot_njit_numpy, open(f"{ROBOT_PATH}/J_dot_njit_numpy", "wb"))
+        print("Done - J_dot - Numba njit numpy")
+
+        # -------------------------------------------------------------------------------------------------------------------------------------------------#
+
+        # Return Symbolic Functions (lambdify) - If `sym`
+        return FK_lambdified_numpy, J_lambdified_numpy, J_dot_lambdified_numpy
+
+    def load_symbolic_functions(self, robot_parameters:dict) -> Tuple[Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray]]:
+
+        """ Load FK, J, J_dot Symbolic Functions """
+
+        # Get Robot Path
+        ROBOT_PATH = f'{FUNCTIONS_PATH}/{robot_parameters["robot"]}'
+
+        # if sym: self.sym_fkine, self.sym_J = self.create_symbolic_functions(robot_model)
+        # TODO: if not exist sym functions self.sym_fkine, self.sym_J, self.sym_J_dot = self.create_symbolic_functions(robot_model)
+        self.create_symbolic_functions(robot_parameters, ROBOT_PATH)
+
+        import dill
+        FK = dill.load(open(f"{ROBOT_PATH}/FK", "rb"))
+        J = dill.load(open(f"{ROBOT_PATH}/J", "rb"))
+        print("Done - FK, J")
+
+        FK_simplified = dill.load(open(f"{ROBOT_PATH}/FK_simplified", "rb"))
+        J_simplified = dill.load(open(f"{ROBOT_PATH}/J_simplified", "rb"))
+        print("Done - FK, J - Simplified")
+
+        FK_lambdified = dill.load(open(f"{ROBOT_PATH}/FK_lambdified", "rb"))
+        J_lambdified = dill.load(open(f"{ROBOT_PATH}/J_lambdified", "rb"))
+        print("Done - FK, J - Lambdified")
+
+        FK_njit = dill.load(open(f"{ROBOT_PATH}/FK_njit", "rb"))
+        J_njit = dill.load(open(f"{ROBOT_PATH}/J_njit", "rb"))
+        print("Done - FK, J - Njit")
+
+        # Return Symbolic Functions (lambdify) - If `sym`
+        # return FK_njit, J_njit
+        return SE3(FK_lambdified), np.asarray(J_lambdified)
+
+    def use_toolbox_functions(self) -> Tuple[Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray]]:
+
+        """ Use Robotics Toolbox FK, J, J_dot Functions """
+
+        # Return Toolbox Functions
+        return self.robot.fkine, self.robot.jacob0, self.robot.jacob0_dot
 
     def ForwardKinematic(self, joint_positions:Union[List[float], np.ndarray], end:str=None, start:str=None) -> SE3:
 
@@ -40,7 +293,12 @@ class UR_Toolbox():
         assert type(joint_positions) in [List[float], np.ndarray], f"Joint Positions must be a ArrayLike | {type(joint_positions)} given"
         assert len(joint_positions) == 6, f"Joint Positions Length must be 6 | {len(joint_positions)} given \nJoint Positions:\n{joint_positions}"
 
-        return self.robot.fkine(joint_positions, end=end, start=start)
+        # Return Forward Kinematic
+        return self.fkine(joint_positions)
+        # return self.robot.fkine(joint_positions, end=end, start=start)
+        return SE3(self.sym_fkine(joint_positions))
+        if self.sym_fkine is not None: return SE3(self.sym_fkine(joint_positions))
+        else: return self.robot.fkine(joint_positions, end=end, start=start)
 
     def InverseKinematic(self, pose:Union[Pose, NDArray, SE3]) -> IKSolution:
 
@@ -59,19 +317,24 @@ class UR_Toolbox():
 
         """ Get Jacobian Matrix """
 
-        return self.robot.jacob0(joint_positions)
+        return self.J(joint_positions)
+        # return compute_ur10e_jacobian(joint_positions)
+        # return self.robot.jacob0(np.asarray(joint_positions))
+        return np.asarray(self.sym_J(joint_positions))
+        if self.sym_J is not None: return np.asarray(self.sym_J(joint_positions))
+        else: return self.robot.jacob0(np.asarray(joint_positions))
 
     def JacobianDot(self, joint_positions:ArrayLike, joint_velocities:ArrayLike) -> np.ndarray:
 
         """ Get Jacobian Derivative Matrix """
 
-        return self.robot.jacob0_dot(joint_positions, joint_velocities)
+        return self.J_dot(joint_positions, joint_velocities)
+        return self.robot.jacob0_dot(np.asarray(joint_positions), np.asarray(joint_velocities))
 
     def JacobianInverse(self, joint_positions:ArrayLike) -> np.ndarray:
 
         """ Get Jacobian Inverse Matrix """
-
-        return np.linalg.inv(self.robot.jacob0(joint_positions))
+        return np.linalg.inv(self.Jacobian(joint_positions))
 
     def getMaxJointVelocity(self) -> np.ndarray:
 
