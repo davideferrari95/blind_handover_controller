@@ -16,8 +16,8 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
 
 # Import Robot and UR_RTDE Move Classes
-from move_robot import UR_RTDE_Move
-from robot_toolbox import UR_Toolbox
+from utils.move_robot import UR_RTDE_Move
+from utils.robot_toolbox import UR_Toolbox
 
 # Import Admittance and PFL Controllers Classes
 from admittance import AdmittanceController
@@ -88,10 +88,10 @@ class Handover_Controller(Node):
         self.declare_parameters('', [('robot', 'ur10e'), ('payload', 12.5), ('reach', 1.30), ('tcp_speed', 1.0)]) # kg, m, m/s
         self.declare_parameters('', [('stopping_time', 0.17), ('stopping_distance', 0.25), ('position_repeatability', 0.05)]) # s, m, mm
         self.declare_parameters('', [('maximum_power', 615), ('operating_power', 350), ('operating_temperature', [0, 50])]) # W, W, °C
-        self.declare_parameters('', [('ft_range', [100.0, 10.0]), ('ft_precision', [5.0, 0.2]), ('ft_accuracy', [5.5, 0.5])]) # N, nm
-        self.declare_parameters('', [('a', [0.0, -0.6127, -0.57155, 0.0, 0.0, 0.0]), ('d', [0.1807, 0.0, 0.0, 0.17415, 0.11985, 0.11655]), ('alpha', [pi/2, 0.0, 0.0, pi/2, -pi/2, 0.0]), ('theta', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])]) # DH Parameters
-        self.declare_parameters('', [('mass', [7.369, 13.051, 3.989, 2.1, 1.98, 0.615]), ('center_of_mass', [0.021, 0.000, 0.027, 0.38, 0.000, 0.158, 0.24, 0.000, 0.068, 0.000, 0.007, 0.018, 0.000, 0.007, 0.018, 0.0, 0.0, -0.026])])  # Dynamic Parameters
-        self.declare_parameters('', [('q_limits', [2*pi, 2*pi, 2*pi, 2*pi, 2*pi, 2*pi]), ('q_dot_limits', [2*pi/3, 2*pi/3, pi, pi, pi, pi]), ('q_ddot_limits', [0.20, 0.20, 0.20, 0.20, 0.20, 0.20])])                                # Joint, Speed, Acceleration Limits
+        self.declare_parameters('', [('ft_range', [100.0, 10.0]), ('ft_precision', [5.0, 0.2]), ('ft_accuracy', [5.5, 0.5]), ('tool', [0.0, 0.0, 0.0, 0.0, 0.0, pi])]) # N, nm
+        self.declare_parameters('', [('a', [0.0, -0.6127, -0.57155, 0.0, 0.0, 0.0]), ('d', [0.1807, 0.0, 0.0, 0.17415, 0.11985, 0.11655]), ('alpha', [pi/2, 0.0, 0.0, pi/2, -pi/2, 0.0]), ('theta', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])])    # DH Parameters
+        self.declare_parameters('', [('mass', [7.369, 13.051, 3.989, 2.1, 1.98, 0.615]), ('center_of_mass', [0.021, 0.000, 0.027, 0.38, 0.000, 0.158, 0.24, 0.000, 0.068, 0.000, 0.007, 0.018, 0.000, 0.007, 0.018, 0.0, 0.0, -0.026])]) # Dynamic Parameters
+        self.declare_parameters('', [('q_limits', [2*pi, 2*pi, 2*pi, 2*pi, 2*pi, 2*pi]), ('q_dot_limits', [2*pi/3, 2*pi/3, pi, pi, pi, pi]), ('q_ddot_limits', [0.20, 0.20, 0.20, 0.20, 0.20, 0.20])]) # Joint, Speed, Acceleration Limits
 
         # Read Parameters
         self.force_dead_zone, self.torque_dead_zone = self.get_parameter_value('force_dead_zone'), self.get_parameter_value('torque_dead_zone')
@@ -101,7 +101,7 @@ class Handover_Controller(Node):
 
         # Read Robot Parameters
         robot_parameters = {param_name : self.get_parameter_value(param_name) for param_name in
-                            ['robot', 'payload', 'reach', 'tcp_speed', 'stopping_time', 'stopping_distance', 'position_repeatability',
+                            ['robot', 'tool', 'payload', 'reach', 'tcp_speed', 'stopping_time', 'stopping_distance', 'position_repeatability',
                             'maximum_power', 'operating_power', 'operating_temperature', 'ft_range', 'ft_precision', 'ft_accuracy',
                             'a', 'd', 'alpha', 'theta', 'mass', 'center_of_mass', 'q_limits', 'q_dot_limits', 'q_ddot_limits']}
 
@@ -126,7 +126,7 @@ class Handover_Controller(Node):
 
         # Initialize Robot and Toolbox Classes
         self.move_robot = UR_RTDE_Move()
-        self.robot_toolbox = UR_Toolbox(robot_parameters, True, self.complete_debug, self.debug)
+        self.robot_toolbox = UR_Toolbox(robot_parameters, self.complete_debug, self.debug)
 
         # Initialize Admittance Controller
         self.admittance_controller = AdmittanceController(
@@ -138,7 +138,8 @@ class Handover_Controller(Node):
         )
 
         # Initialize PFL Controller
-        self.pfl_controller = PowerForceLimitingController(self.rate, self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
+        # self.pfl_controller = PowerForceLimitingController(self.rate, self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
+        self.pfl_controller = PowerForceLimitingController(self.rate, self.robot_toolbox, robot_parameters, human_radius, True, True)
 
         # FIX: Remove Test Function
         if self.sim: self.test()
@@ -249,12 +250,13 @@ class Handover_Controller(Node):
 
         # UR10e
         goal = [0.15, -1.71, 2.28, -2.13, -1.67, 0.39]
-        goal = [0.45, -2.30, 2.28, -2.13, -1.67, 0.39]
+        # goal = [0.45, -2.30, 2.28, -2.13, -1.67, 0.39]
 
         time.sleep(1)
         print(f'JointState Position: {self.joint_states.position}\n')
 
-        trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, goal, 10, self.ros_rate)
+        # trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, goal, 10, self.ros_rate)
+        trajectory = self.robot_toolbox.plan_trajectory([0.15, -1.71, 2.28, -2.13, -1.67, 0.39], goal, 10, self.ros_rate)
 
         print (trajectory, '\n\n')
         print (colored('Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
@@ -264,8 +266,7 @@ class Handover_Controller(Node):
         # Convert Joint Trajectory to Cartesian Trajectory
         start = time.time()
         cartesian_trajectory, i = self.robot_toolbox.joint2cartesianTrajectory(trajectory), 0
-        print(colored(f'Trajectory Converted\n', 'green'))
-        print(time.time() - start)
+        print(colored(f'Trajectory Converted: ', 'green'), f'{time.time() - start}\n')
 
         while (rclpy.ok()):
 

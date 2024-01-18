@@ -26,21 +26,21 @@ class UR_Toolbox():
 
         """ Initialize Robot Toolbox """
 
+        # Set Debug Flags
+        self.complete_debug, self.debug = complete_debug, debug or complete_debug
+
         # Create Robot - Robotic Toolbox
         self.robot = self.create_robot(robot_parameters)
 
         # Load Kinematic Functions
         self.fkine, self.J, self.J_dot = self.load_kinematic_functions(robot_parameters['robot'])
 
-        # Set Debug Flags
-        self.complete_debug, self.debug = complete_debug, debug or complete_debug
-
     def create_robot(self, robot_parameters:dict, symbolic:bool=False) -> DHRobot:
 
         """ Create Robot Model """
 
         # Robot Parameters
-        robot_model = robot_parameters['robot']
+        robot_model, tool = robot_parameters['robot'], robot_parameters['tool'],
         payload, reach, tcp_speed = robot_parameters['payload'], robot_parameters['reach'], robot_parameters['tcp_speed']
         stopping_time, stopping_distance, position_repeatability = robot_parameters['stopping_time'], robot_parameters['stopping_distance'], robot_parameters['position_repeatability']
         maximum_power, operating_power,operating_temperature = robot_parameters['maximum_power'], robot_parameters['operating_power'], robot_parameters['operating_temperature']
@@ -49,11 +49,26 @@ class UR_Toolbox():
         mass, center_of_mass = robot_parameters['mass'], [robot_parameters['center_of_mass'][i:i+3] for i in range(0, len(robot_parameters['center_of_mass']), 3)]
         q_lim, qd_lim, qdd_lim = robot_parameters['q_limits'], robot_parameters['q_dot_limits'], robot_parameters['q_ddot_limits']
 
+        # Compute Tool Transformation Matrix
+        tool_transform = np.eye(4)
+        tool_transform[:3, 3] = tool[:3]
+        tool_transform[:3, :3] = Rotation.from_euler('xyz', tool[3:], degrees=False).as_matrix()
+
+        # Debug Print
+        if self.complete_debug:
+
+            # Robot Parameters
+            print(colored(f'Robot Parameters:\n', 'yellow'))
+            for param in robot_parameters.keys(): print(colored(f'    {param}: ', 'green'), f'{robot_parameters[param]}')
+
+            # Tool Transformation Matrix
+            print(colored(f'\nTool Transformation Matrix:\n\n{SE3(tool_transform)}\n', 'green'))
+
         # Create Robot Model
         return DHRobot(
             [RevoluteDH(a=a_n, d=d_n, alpha=alpha_n, offset=offset_n, q_lim=[-q_lim_n, q_lim_n], m=mass_n, r=center_of_mass_n.tolist()) 
              for a_n, d_n, alpha_n, offset_n, mass_n, center_of_mass_n, q_lim_n in zip(a, d, alpha, offset, mass, center_of_mass, q_lim)],
-            name=robot_model, manufacturer='Universal Robot', symbolic=symbolic)
+            name=robot_model, manufacturer='Universal Robot', symbolic=symbolic, tool=SE3(tool_transform))
 
     def load_kinematic_functions(self, robot_model:str) -> Tuple[Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray], Callable[[List[float], List[float]], np.ndarray]]:
 
