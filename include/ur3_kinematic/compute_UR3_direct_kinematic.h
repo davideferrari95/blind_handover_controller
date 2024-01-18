@@ -1,3 +1,5 @@
+#include <Eigen/Dense>
+
 Eigen::Matrix<double, 4, 4> compute_UR3_direct_kinematic(Eigen::Matrix<double, 6, 1> q){
 
 Eigen::Matrix<double, 4, 4> T;
@@ -44,4 +46,3 @@ T(3,3) = 1.0;
 return T;
 
 }
-

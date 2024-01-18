@@ -1,17 +1,18 @@
 #include <Eigen/Dense>
 
-Eigen::Matrix<double, 6, 6> compute_UR3_jacobian(Eigen::Matrix<double, 6, 1> q){
+// Eigen::Matrix<double, 6, 6> compute_UR3_jacobian(Eigen::Matrix<double, 6, 1> q){
+extern "C" void compute_UR3_jacobian(double* result, double *q) {
 
 Eigen::Matrix<double, 6, 6> J;
 
 J.setZero();
 
-double q0 = q(0,0);
-double q1 = q(1,0);
-double q2 = q(2,0);
-double q3 = q(3,0);
-double q4 = q(4,0);
-double q5 = q(5,0);
+double q0 = q[0];
+double q1 = q[1];
+double q2 = q[2];
+double q3 = q[3];
+double q4 = q[4];
+double q5 = q[5];
 
 J(0,0) = cos(q0)*1.1235E-1+cos(q0)*cos(q4)*8.19E-2-cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*8.535E-2+cos(q1)*sin(q0)*2.4365E-1-sin(q4)*(sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0+cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)))*8.19E-2+sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0))*8.535E-2-sin(q0)*sin(q1)*sin(q2)*2.1325E-1+cos(q1)*cos(q2)*sin(q0)*2.1325E-1;
 
@@ -85,6 +86,13 @@ J(5,4) = (cos(q4)*sin(q0)-sin(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(
 
 J(5,5) = -(sin(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0)*1.0+cos(q5)*(cos(q0)*sin(q4)*1.0+cos(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*1.0))*(sin(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0))*1.0+cos(q5)*(sin(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)*1.0+cos(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.0)-(cos(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0)*1.0-sin(q5)*(cos(q0)*sin(q4)*1.0+cos(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*1.0)*1.0)*(cos(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0))-sin(q5)*(sin(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)*1.0+cos(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.0);
 
-return J;
+// return J;
+
+int index = 0;
+for (int row = 0; row < J.rows(); ++row) {
+	for (int col = 0; col < J.cols(); ++col) {
+		result[index++] = J(row, col);
+	}
+}
 
 }

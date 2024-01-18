@@ -1,7 +1,7 @@
 #include <Eigen/Dense>
 
-// Eigen::Matrix<double, 4, 4> compute_UR16e_direct_kinematic(Eigen::Matrix<double, 6, 1> q){
-extern "C" void compute_UR16e_direct_kinematic(double* result, double *q) {
+// Eigen::Matrix<double, 4, 4> compute_UR10e_direct_kinematic(Eigen::Matrix<double, 6, 1> q){
+extern "C" void compute_UR10e_direct_kinematic(double* result, double *q) {
 
 Eigen::Matrix<double, 4, 4> T;
 
@@ -18,7 +18,7 @@ T(0,1) = sin(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(
 
 T(0,2) = cos(q4)*sin(q0)-sin(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.0;
 
-T(0,3) = sin(q0)*1.7415E-1-cos(q0)*cos(q1)*4.784E-1+cos(q4)*sin(q0)*1.1655E-1-sin(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.1655E-1+sin(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)*1.1985E-1+cos(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.1985E-1-cos(q0)*cos(q1)*cos(q2)*3.6E-1+cos(q0)*sin(q1)*sin(q2)*3.6E-1;
+T(0,3) = sin(q0)*1.7415E-1-cos(q0)*cos(q1)*6.127E-1+cos(q4)*sin(q0)*1.1655E-1-sin(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)-sin(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.0)*1.1655E-1+sin(q3)*(cos(q0)*cos(q1)*cos(q2)-cos(q0)*sin(q1)*sin(q2)*1.0)*1.1985E-1+cos(q3)*(cos(q0)*cos(q1)*sin(q2)*1.0+cos(q0)*cos(q2)*sin(q1)*1.0)*1.1985E-1-cos(q0)*cos(q1)*cos(q2)*5.7155E-1+cos(q0)*sin(q1)*sin(q2)*5.7155E-1;
 
 T(1,0) = sin(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0)*-1.0-cos(q5)*(cos(q0)*sin(q4)*1.0+cos(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*1.0)*1.0;
 
@@ -26,7 +26,7 @@ T(1,1) = cos(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1
 
 T(1,2) = cos(q0)*cos(q4)*-1.0+sin(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0);
 
-T(1,3) = cos(q0)*-1.7415E-1-cos(q0)*cos(q4)*1.1655E-1+cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.1985E-1-cos(q1)*sin(q0)*4.784E-1-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.1985E-1+sin(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*1.1655E-1+sin(q0)*sin(q1)*sin(q2)*3.6E-1-cos(q1)*cos(q2)*sin(q0)*3.6E-1;
+T(1,3) = cos(q0)*-1.7415E-1-cos(q0)*cos(q4)*1.1655E-1+cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.1985E-1-cos(q1)*sin(q0)*6.127E-1-sin(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.1985E-1+sin(q4)*(cos(q3)*(sin(q0)*sin(q1)*sin(q2)*1.0-cos(q1)*cos(q2)*sin(q0)*1.0)*1.0+sin(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)*1.0)*1.0)*1.1655E-1+sin(q0)*sin(q1)*sin(q2)*5.7155E-1-cos(q1)*cos(q2)*sin(q0)*5.7155E-1;
 
 T(2,0) = sin(q5)*(cos(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0)*1.0-sin(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)*1.0)+cos(q4)*cos(q5)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0));
 
@@ -34,7 +34,7 @@ T(2,1) = cos(q5)*(cos(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0)*1.0-sin(q3)*
 
 T(2,2) = sin(q4)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0))*-1.0;
 
-T(2,3) = sin(q1)*-4.784E-1-cos(q1)*sin(q2)*3.6E-1-cos(q2)*sin(q1)*3.6E-1-sin(q4)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0))*1.1655E-1-cos(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0)*1.1985E-1+sin(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)*1.1985E-1+1.807E-1;
+T(2,3) = sin(q1)*-6.127E-1-cos(q1)*sin(q2)*5.7155E-1-cos(q2)*sin(q1)*5.7155E-1-sin(q4)*(cos(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)+sin(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0))*1.1655E-1-cos(q3)*(cos(q1)*cos(q2)*1.0-sin(q1)*sin(q2)*1.0)*1.1985E-1+sin(q3)*(cos(q1)*sin(q2)*1.0+cos(q2)*sin(q1)*1.0)*1.1985E-1+1.807E-1;
 
 T(3,0) = 0.0;
 
@@ -48,9 +48,9 @@ T(3,3) = 1.0;
 
 int index = 0;
 for (int row = 0; row < T.rows(); ++row) {
-    for (int col = 0; col < T.cols(); ++col) {
-        result[index++] = T(row, col);
-    }
+	for (int col = 0; col < T.cols(); ++col) {
+		result[index++] = T(row, col);
+	}
 }
 
 }

@@ -1,3 +1,5 @@
+#include <Eigen/Dense>
+
 Eigen::Matrix<double, 6, 6> compute_UR3e_jacobian_dot(Eigen::Matrix<double, 6, 1> q, Eigen::Matrix<double, 6, 1> dq){
 
 Eigen::Matrix<double, 6, 6> J_dot;
@@ -93,4 +95,3 @@ J_dot(5,5) = (sin(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)*cos(q2)
 return J_dot;
 
 }
-

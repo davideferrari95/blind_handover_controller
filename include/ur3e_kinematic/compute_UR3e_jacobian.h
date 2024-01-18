@@ -1,3 +1,5 @@
+#include <Eigen/Dense>
+
 Eigen::Matrix<double, 6, 6> compute_UR3e_jacobian(Eigen::Matrix<double, 6, 1> q){
 
 Eigen::Matrix<double, 6, 6> J;
@@ -86,4 +88,3 @@ J(5,5) = -(sin(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)
 return J;
 
 }
-

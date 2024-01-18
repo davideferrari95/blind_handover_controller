@@ -1,3 +1,5 @@
+#include <Eigen/Dense>
+
 Eigen::Matrix<double, 6, 1> compute_UR5_jacobian_dot_dq(Eigen::Matrix<double, 6, 1> q, Eigen::Matrix<double, 6, 1> dq){
 
 Eigen::Matrix<double, 6, 1> J_dot_dq;
@@ -33,4 +35,3 @@ J_dot_dq(5,0) = dq5*((sin(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)
 return J_dot_dq;
 
 }
-
