@@ -39,7 +39,7 @@ handover_controller:
     theta: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Tool Parameters (x,y,z,rx,ry,rz)
-    tool:  [0.0, 0.0922, 0.0, -6.2832, 0.0, 3.1415]
+    tool:  [0.0, 0.0, 0.0, 0.0, 0.0, 3.1415]
 
     # Dynamic Parameters
     mass: [7.369, 13.051, 3.989, 2.1, 1.98, 0.615]
