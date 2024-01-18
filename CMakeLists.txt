@@ -26,7 +26,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
 # Install Python Modules
-ament_python_install_package(scripts)
+ament_python_install_package(scripts/utils)
 
 # Install Python Scripts
 install(PROGRAMS
