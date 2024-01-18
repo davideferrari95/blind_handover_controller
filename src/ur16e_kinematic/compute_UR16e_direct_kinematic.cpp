@@ -47,11 +47,10 @@ T(3,3) = 1.0;
 // return T;
 
 int index = 0;
-for (int col = 0; col < T.cols(); ++col) {
-    for (int row = 0; row < T.rows(); ++row) {
+for (int row = 0; row < T.rows(); ++row) {
+    for (int col = 0; col < T.cols(); ++col) {
         result[index++] = T(row, col);
     }
 }
 
 }
-

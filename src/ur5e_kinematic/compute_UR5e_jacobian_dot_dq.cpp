@@ -36,11 +36,10 @@ J_dot_dq(5,0) = dq5*((sin(q5)*(sin(q0)*sin(q4)+cos(q4)*(cos(q3)*(cos(q0)*cos(q1)
 // return J_dot_dq;
 
 int index = 0;
-for (int col = 0; col < J_dot_dq.cols(); ++col) {
-    for (int row = 0; row < J_dot_dq.rows(); ++row) {
+for (int row = 0; row < J_dot_dq.rows(); ++row) {
+    for (int col = 0; col < J_dot_dq.cols(); ++col) {
         result[index++] = J_dot_dq(row, col);
     }
 }
 
 }
-

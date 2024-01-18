@@ -58,7 +58,7 @@ class AdmittanceController():
         """ Compute Admittance Cartesian Velocity """
 
         # Compute Manipulator Jacobian
-        J = self.robot.Jacobian(joint_states.position)
+        J = self.robot.Jacobian(np.array(joint_states.position))
         if self.complete_debug: print(colored('J: ', 'green'), f'{type(J)} | {J.shape} \n {J}\n')
 
         # Compute Cartesian Position

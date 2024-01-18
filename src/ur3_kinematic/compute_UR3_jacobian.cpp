@@ -89,11 +89,10 @@ J(5,5) = -(sin(q5)*(cos(q3)*(cos(q1)*sin(q0)*sin(q2)*1.0+cos(q2)*sin(q0)*sin(q1)
 // return J;
 
 int index = 0;
-for (int col = 0; col < J.cols(); ++col) {
-    for (int row = 0; row < J.rows(); ++row) {
+for (int row = 0; row < J.rows(); ++row) {
+    for (int col = 0; col < J.cols(); ++col) {
         result[index++] = J(row, col);
     }
 }
 
 }
-

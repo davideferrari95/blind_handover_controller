@@ -66,7 +66,7 @@ class UR_Toolbox():
 
             # Load Functions
             kin = Kinematic_Wrapper(robot_model)
-            return kin.compute_direct_kinematic, kin.compute_jacobian, kin.compute_jacobian_dot
+            return kin.compute_forward_kinematic, kin.compute_jacobian, kin.compute_jacobian_dot
 
         except ValueError:
 
@@ -84,9 +84,6 @@ class UR_Toolbox():
     def ForwardKinematic(self, joint_positions:Union[List[float], np.ndarray], end:str=None, start:str=None) -> SE3:
 
         """ Forward Kinematics Using Peter Corke Robotics Toolbox """
-
-        # Convert Joint Positions to NumPy Array
-        if type(joint_positions) is list: joint_positions = np.array(joint_positions)
 
         # Type Assertion
         assert type(joint_positions) in [List[float], np.ndarray], f"Joint Positions must be a ArrayLike | {type(joint_positions)} given"
@@ -112,11 +109,21 @@ class UR_Toolbox():
 
         """ Get Jacobian Matrix """
 
+        # Type Assertion
+        assert type(joint_positions) in [List[float], np.ndarray], f"Joint Positions must be a ArrayLike | {type(joint_positions)} given"
+        assert len(joint_positions) == 6, f"Joint Positions Length must be 6 | {len(joint_positions)} given \nJoint Positions:\n{joint_positions}"
+
         return self.J(joint_positions)
 
     def JacobianDot(self, joint_positions:ArrayLike, joint_velocities:ArrayLike) -> np.ndarray:
 
         """ Get Jacobian Derivative Matrix """
+
+        # Type Assertion
+        assert type(joint_positions) in [List[float], np.ndarray], f"Joint Positions must be a ArrayLike | {type(joint_positions)} given"
+        assert type(joint_velocities) in [List[float], np.ndarray], f"Joint Velocities must be a ArrayLike | {type(joint_velocities)} given"
+        assert len(joint_positions) == 6, f"Joint Positions Length must be 6 | {len(joint_positions)} given \nJoint Positions:\n{joint_positions}"
+        assert len(joint_velocities) == 6, f"Joint Velocities Length must be 6 | {len(joint_velocities)} given \nJoint Velocities:\n{joint_velocities}"
 
         return self.J_dot(joint_positions, joint_velocities)
 
@@ -227,7 +234,7 @@ class UR_Toolbox():
         if self.complete_debug: print(f'Joint Trajectory Shape | Positions: {joint_trajectory.q.shape} | Velocities: {joint_trajectory.qd.shape} | Accelerations: {joint_trajectory.qdd.shape}')
 
         # Convert Joint to Cartesian Positions
-        for q, q_dot, q_ddot in zip(joint_trajectory.q, joint_trajectory.qd, joint_trajectory.qdd):
+        for q, q_dot, q_ddot in zip(np.asarray(joint_trajectory.q, dtype=np.double), np.asarray(joint_trajectory.qd, dtype=np.double), np.asarray(joint_trajectory.qdd, dtype=np.double)):
 
             # Convert Joint Position to Cartesian Position (x = ForwardKinematic(q))
             x = self.ForwardKinematic(q)

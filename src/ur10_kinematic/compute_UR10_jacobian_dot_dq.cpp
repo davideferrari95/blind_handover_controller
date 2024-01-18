@@ -43,4 +43,3 @@ for (int col = 0; col < J_dot_dq.cols(); ++col) {
 }
 
 }
-
