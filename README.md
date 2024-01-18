@@ -28,6 +28,25 @@ This package contains an Handover Controller with Admittance and Power and Force
 
         pip install -r ../path/to/this/repo/requirements.txt
 
+## Build New Robot Kinematic Libraries
+
+- Create the Kinematic Source Files in `src/robot_name_kinematic`:
+
+  - `compute_robot_name_direct_kinematic.cpp`
+  - `compute_robot_name_jacobian.cpp`
+  - `compute_robot_name_jacobian_dot_dq.cpp`
+
+- Use https://github.com/ARSControl/robot_kinematic to generate the Robot Kinematic Source Files (Little Manual Edit is Needed).
+
+- Edit the `src/tasks.py` build file adding the new source and destination path.
+
+- Build the Robot Kinematic Library:
+
+        cd path/to/package/src
+        invoke build
+
+- Add the new libraries to the `scripts/utils/kinematic_wrapper` script file.
+
 ## Launch Instructions
 
 - Activate the `conda` environment:
