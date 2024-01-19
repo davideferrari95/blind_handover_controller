@@ -302,9 +302,12 @@ class UR_Toolbox():
         assert transformation_matrix.shape == (4, 4), f'Transformation must a 4x4 Matrix | {transformation_matrix.shape} obtained'
         return SE3(transformation_matrix)
 
-    def matrix2pose(self, matrix:SE3) -> Pose:
+    def matrix2pose(self, matrix:Union[np.ndarray, SE3]) -> Pose:
 
         """ Convert SE3 Transformation Matrix to Pose """
+
+        # Convert Numpy Array to SE3 Matrix
+        if type(matrix) is np.ndarray: matrix = SE3(matrix)
 
         # Type Assertion
         assert type(matrix) is SE3, f"Matrix must be a SE3 | {type(matrix)} given | {matrix}"
