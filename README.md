@@ -28,6 +28,15 @@ This package contains an Handover Controller with Admittance and Power and Force
 
         pip install -r ../path/to/this/repo/requirements.txt
 
+- Install `invoke`:
+
+        pip install invoke
+
+- Install `vrpn_client_ros2`:
+
+        sudo apt install ros-foxy-vrpn
+        sudo apt install ros-foxy-vrpn-mocap
+
 ## Build New Robot Kinematic Libraries
 
 - Create the Kinematic Source Files in `src/robot_name_kinematic`:
@@ -60,6 +69,10 @@ This package contains an Handover Controller with Admittance and Power and Force
         export ROS_DOMAIN_ID=10
 
 ### Launch Handover Controller
+
+- Launch `vrpn_client_ros2`:
+
+        ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
 
 - Launch `handover_controller`:
 
