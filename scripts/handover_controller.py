@@ -375,11 +375,12 @@ class Handover_Controller(Node):
 
         """ Stop Admittance Server Callback """
 
-        # Stop Robot
-        self.publishRobotVelocity([0.0] * 6)
-
         print(colored('Admittance Controller Completed\n', 'yellow'))
         self.goal_received, self.start_admittance = False, False
+
+        # Stop Robot
+        self.desired_joint_velocity = [0.0] * 6
+        self.publishRobotVelocity(self.desired_joint_velocity)
 
         # Response Filling
         res.success = True

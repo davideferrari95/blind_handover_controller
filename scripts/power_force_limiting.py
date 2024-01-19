@@ -138,7 +138,7 @@ class PowerForceLimitingController():
         elif self.debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit)
 
         # Compute Robot Projected Desired Velocity
-        x_dot: np.ndarray = self.robot.Jacobian(joint_states.position) @ np.array(desired_joint_velocity)
+        x_dot: np.ndarray = self.robot.Jacobian(np.array(joint_states.position)) @ np.array(desired_joint_velocity)
         Vr = np.array([x_dot[0], x_dot[1], x_dot[2]]) @ np.array([hr_versor.x, hr_versor.y, hr_versor.z])
         if self.complete_debug: print(colored('Robot Desired Velocity: ', 'green'), x_dot)
         if self.complete_debug: print(colored('Robot Projected Desired Velocity: ', 'green'), Vr, '\n')
