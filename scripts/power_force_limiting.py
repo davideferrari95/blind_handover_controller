@@ -1,33 +1,19 @@
 #! /usr/bin/env python3
 
-import time, numpy as np
+import numpy as np
 from termcolor import colored
 
-# Import ROS2 Libraries
-import rclpy
-from rclpy.node import Node, Rate
-
 # Import ROS2 Messages
-from geometry_msgs.msg import PoseStamped, Vector3
+from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import JointState
 
 from utils.robot_toolbox import UR_Toolbox
 
-class PowerForceLimitingController(Node):
+class PowerForceLimitingController():
 
-    # Human Point Variables
-    human_point, human_vel = Vector3(), Vector3()
-    human_timer = time.time()
-
-    def __init__(self, rate:Rate, robot:UR_Toolbox, robot_parameters:dict, human_radius:float=0.1, complete_debug:bool=False, debug:bool=False):
+    def __init__(self, robot:UR_Toolbox, robot_parameters:dict, human_radius:float=0.1, complete_debug:bool=False, debug:bool=False):
 
         """ Power Force Limiting (PFL) Controller """
-
-        # Node Initialization
-        super().__init__('pfl_controller')
-
-        # ROS Parameters
-        self.rate = rate
 
         # Class Parameters
         self.robot = robot
@@ -39,28 +25,6 @@ class PowerForceLimitingController(Node):
         # Robot Parameters
         self.stopping_time, self.stopping_distance = robot_parameters['stopping_time'], robot_parameters['stopping_distance']
         self.max_speed = max(robot_parameters['q_limits'])
-
-        # ROS Subscribers
-        self.human_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_client_node/polsino_dn/pose', self.humanPointCallback, 1)
-
-    def humanPointCallback(self, msg:PoseStamped):
-
-        """ Human Pose Callback (PH) """
-
-        # Update Human PointStamped Message
-        # self.human_point.header.frame_id = 'vision'
-        # self.human_point.point = msg.pose.position
-
-        # Compute Human Velocity
-        self.human_vel.x, self.human_vel.y, self.human_vel.z = (msg.pose.position.x - self.human_point.x) / (time.time() - self.human_timer), \
-                                                               (msg.pose.position.y - self.human_point.y) / (time.time() - self.human_timer), \
-                                                               (msg.pose.position.z - self.human_point.z) / (time.time() - self.human_timer)
-
-        # Update Human Timer
-        self.human_timer = time.time()
-
-        # Update Human Vector3 Message
-        self.human_point.x, self.human_point.y, self.human_point.z = msg.pose.position.x, msg.pose.position.y, msg.pose.position.z
 
     def compute_robot_point(self, joint_states:JointState) -> Vector3:
 
@@ -92,7 +56,7 @@ class PowerForceLimitingController(Node):
         # Compute Distance (Euclidean Norm) Between Two Points
         return np.linalg.norm(np.array([v1.x - v2.x, v1.y - v2.y, v1.z - v2.z]))
 
-    def compute_ISO_vel_lim(self, P_H:Vector3, P_R:Vector3, hr_versor:Vector3) -> float:
+    def compute_ISO_vel_lim(self, P_H:Vector3, P_R:Vector3, hr_versor:Vector3, human_vel:Vector3) -> float:
 
         """ Compute ISO/TS 15066 Velocity Limit """
 
@@ -143,8 +107,8 @@ class PowerForceLimitingController(Node):
         Ts, Tr, C, Zd, Zr = self.stopping_time, 0.0, 0.0, 0.0, 0.0
 
         # Compute Human Projected Velocity
-        Vh = np.array([self.human_vel.x, self.human_vel.y, self.human_vel.z]) @ np.array([hr_versor.x, hr_versor.y, hr_versor.z])
-        if self.complete_debug: print(colored('Human Velocity: ', 'green'), f'{self.human_vel.x} {self.human_vel.y} {self.human_vel.z}')
+        Vh = np.array([human_vel.x, human_vel.y, human_vel.z]) @ np.array([hr_versor.x, hr_versor.y, hr_versor.z])
+        if self.complete_debug: print(colored('Human Velocity: ', 'green'), f'{human_vel.x} {human_vel.y} {human_vel.z}')
         if self.complete_debug: print(colored('Human Projected Velocity: ', 'green'), Vh, '\n')
 
         # Robot Maximum Acceleration
@@ -153,12 +117,12 @@ class PowerForceLimitingController(Node):
         # Compute ISO/TS 15066 Velocity Limit
         return (Sp - Vh * (Ts + Tr) - C - Zd - Zr) / (Ts + Tr) - (a_max * Ts**2) / (2 * (Ts + Tr))
 
-    def compute_pfl_velocity(self, desired_joint_velocity:np.ndarray,  joint_states:JointState)  -> np.ndarray:
+    def compute_pfl_velocity(self, desired_joint_velocity:np.ndarray,  joint_states:JointState, human_point:Vector3, human_vel:Vector3)  -> np.ndarray:
 
         """ Compute Power and Force Velocity Limit (PFL) """
 
         # Compute PH and PR Vector3
-        P_H, P_R = self.human_point, self.compute_robot_point(joint_states)
+        P_H, P_R = human_point, self.compute_robot_point(joint_states)
 
         if self.complete_debug: print(colored('\nPFL Controller:\n', 'green'))
         if self.complete_debug: print(colored('Human Point: ', 'green'), P_H)
@@ -169,7 +133,7 @@ class PowerForceLimitingController(Node):
         if self.complete_debug: print (colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}\n')
 
         # Compute Maximum Robot Velocity according to ISO/TS 15066
-        vel_limit = self.compute_ISO_vel_lim(P_H, P_R, hr_versor)
+        vel_limit = self.compute_ISO_vel_lim(P_H, P_R, hr_versor, human_vel)
         if self.complete_debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit, '\n')
         elif self.debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit)
 
@@ -183,6 +147,7 @@ class PowerForceLimitingController(Node):
         scaling_factor =  vel_limit / Vr
         if self.debug or self.complete_debug: print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
         if self.debug or self.complete_debug: print('-'*100, '\n')
+        # if 0 < scaling_factor < 1: print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
 
         # Compute Scaled Joint Velocity (alpha < 0 -> robot moving away from human)
         if scaling_factor >= 1: return desired_joint_velocity

@@ -14,7 +14,7 @@ from rclpy.node import Node, Parameter
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Pose, Wrench
+from geometry_msgs.msg import Pose, PoseStamped, Wrench, Vector3
 
 # Import Robot and UR_RTDE Move Classes
 from utils.move_robot import UR_RTDE_Move
@@ -57,10 +57,14 @@ class Handover_Controller(Node):
 
     """ Handover Controller Class """
 
-    # Initialize Subscriber Variables
+    # Initialize Class Variables
     goal_received, start_admittance = False, False
     joint_states, ft_sensor_data = JointState(), Wrench()
     desired_joint_velocity = [0.0] * 6
+
+    # Initialize Robot and Human Points Variables
+    human_point, robot_base = Vector3(), Pose()
+    human_vel, human_timer = Vector3(), time.time()
 
     def __init__(self, node_name, ros_rate):
 
@@ -102,6 +106,10 @@ class Handover_Controller(Node):
                             'maximum_power', 'operating_power', 'operating_temperature', 'ft_range', 'ft_precision', 'ft_accuracy',
                             'a', 'd', 'alpha', 'theta', 'mass', 'center_of_mass', 'q_limits', 'q_dot_limits', 'q_ddot_limits']}
 
+        # Initialize Robot and Toolbox Classes
+        self.move_robot = UR_RTDE_Move()
+        self.robot_toolbox = UR_Toolbox(robot_parameters, self.complete_debug, self.debug)
+
         # Print Parameters
         print(colored('\nPFL Controller Parameters:', 'yellow'), '\n')
         print(colored('    use_feedback_velocity:', 'green'), f'\t{use_feedback_velocity}')
@@ -121,12 +129,12 @@ class Handover_Controller(Node):
         self.cartesian_goal_subscriber = self.create_subscription(Pose,              '/handover/cartesian_goal', self.cartesianGoalCallback, 1)
         self.joint_goal_subscriber     = self.create_subscription(Float64MultiArray, '/handover/joint_goal',     self.jointGoalCallback, 1)
 
+        # PFL Subscribers
+        self.human_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_mocap/right_wrist/pose', self.humanPointCallback, 1)
+        self.robot_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_mocap/UR5/pose', self.robotPointCallback, 1)
+
         # Service Servers
         self.stop_admittance_server = self.create_service(Trigger, '/handover/stop', self.stopAdmittanceServerCallback)
-
-        # Initialize Robot and Toolbox Classes
-        self.move_robot = UR_RTDE_Move()
-        self.robot_toolbox = UR_Toolbox(robot_parameters, self.complete_debug, self.debug)
 
         # Initialize Admittance Controller
         self.admittance_controller = AdmittanceController(
@@ -138,8 +146,8 @@ class Handover_Controller(Node):
         )
 
         # Initialize PFL Controller
-        # self.pfl_controller = PowerForceLimitingController(self.rate, self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
-        self.pfl_controller = PowerForceLimitingController(self.rate, self.robot_toolbox, robot_parameters, human_radius, True, True)
+        # self.pfl_controller = PowerForceLimitingController(self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
+        self.pfl_controller = PowerForceLimitingController(self.robot_toolbox, robot_parameters, human_radius, True, True)
 
         # FIX: Remove Test Function
         # if self.sim: self.test()
@@ -334,6 +342,35 @@ class Handover_Controller(Node):
         self.handover_goal = data.data
         self.goal_received, self.start_admittance = True, False
 
+    def humanPointCallback(self, msg:PoseStamped):
+
+        """ Human Pose Callback (PH) """
+
+        # Transform Human Pose from World Frame to Robot Base Frame (T2 in T1​​ = T1^-1 ​@ T2)
+        human_pos = np.linalg.inv(self.robot_toolbox.pose2matrix(self.robot_base).A) @ self.robot_toolbox.pose2matrix(msg.pose).A
+        human_pos = self.robot_toolbox.matrix2pose(human_pos)
+
+        # Compute Human Velocity
+        self.human_vel.x, self.human_vel.y, self.human_vel.z = (human_pos.position.x - self.human_point.x) / (time.time() - self.human_timer), \
+                                                               (human_pos.position.y - self.human_point.y) / (time.time() - self.human_timer), \
+                                                               (human_pos.position.z - self.human_point.z) / (time.time() - self.human_timer)
+
+        # TODO: Check with Human Velocity != 0
+        self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.0, 0.0, 0.0
+
+        # Update Human Timer
+        self.human_timer = time.time()
+
+        # Update Human Vector3 Message
+        self.human_point.x, self.human_point.y, self.human_point.z = human_pos.position.x, human_pos.position.y, human_pos.position.z
+
+    def robotPointCallback(self, msg:PoseStamped):
+
+        """ Robot Pose Callback (UR - Base) """
+
+        # Update Robot Base Message
+        self.robot_base = msg.pose
+
     def stopAdmittanceServerCallback(self, req:Trigger.Request, res:Trigger.Response):
 
         """ Stop Admittance Server Callback """
@@ -447,7 +484,7 @@ class Handover_Controller(Node):
             self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.desired_joint_velocity, *cartesian_goal)
 
             # Compute PFL Velocity
-            # self.desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(self.desired_joint_velocity,  self.joint_states)
+            self.desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(self.desired_joint_velocity,  self.joint_states, self.human_point, self.human_vel)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(self.desired_joint_velocity)
