@@ -31,7 +31,7 @@ ament_python_install_package(scripts/utils)
 # Install Python Scripts
 install(PROGRAMS
   scripts/handover_controller.py
-  scripts/utils/move_robot.py
+  scripts/utils/goal_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
