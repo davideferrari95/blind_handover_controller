@@ -11,7 +11,8 @@ import rclpy
 from rclpy.node import Node, Parameter
 
 # Import ROS Messages, Services, Actions
-from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
 
@@ -57,13 +58,9 @@ class Handover_Controller(Node):
     """ Handover Controller Class """
 
     # Initialize Subscriber Variables
-    trajectory_executed, goal_received = False, False
-    handover_cartesian_goal = Pose()
+    goal_received, start_admittance = False, False
     joint_states, ft_sensor_data = JointState(), Wrench()
     desired_joint_velocity = [0.0] * 6
-
-    # FIX: Remove Pause OS Variable
-    pause_os = False
 
     def __init__(self, node_name, ros_rate):
 
@@ -119,10 +116,13 @@ class Handover_Controller(Node):
         if self.sim: self.joint_simulation_publisher = self.create_publisher(JointState, '/joint_states', 1)
 
         # Subscribers
-        self.joint_state_subscriber    = self.create_subscription(JointState, '/joint_states',                self.jointStatesCallback, 1)
-        self.ft_sensor_subscriber      = self.create_subscription(Wrench,     '/ur_rtde/ft_sensor',           self.FTSensorCallback, 1)
-        self.cartesian_goal_subscriber = self.create_subscription(Pose,       '/handover/cartesian_goal',     self.cartesianGoalCallback, 1)
-        self.trajectory_execution_sub  = self.create_subscription(Bool,       '/ur_rtde/trajectory_executed', self.trajectoryExecutionCallback, 1)
+        self.joint_state_subscriber    = self.create_subscription(JointState,        '/joint_states',            self.jointStatesCallback, 1)
+        self.ft_sensor_subscriber      = self.create_subscription(Wrench,            '/ur_rtde/ft_sensor',       self.FTSensorCallback, 1)
+        self.cartesian_goal_subscriber = self.create_subscription(Pose,              '/handover/cartesian_goal', self.cartesianGoalCallback, 1)
+        self.joint_goal_subscriber     = self.create_subscription(Float64MultiArray, '/handover/joint_goal',     self.jointGoalCallback, 1)
+
+        # Service Servers
+        self.stop_admittance_server = self.create_service(Trigger, '/handover/stop', self.stopAdmittanceServerCallback)
 
         # Initialize Robot and Toolbox Classes
         self.move_robot = UR_RTDE_Move()
@@ -142,8 +142,8 @@ class Handover_Controller(Node):
         self.pfl_controller = PowerForceLimitingController(self.rate, self.robot_toolbox, robot_parameters, human_radius, True, True)
 
         # FIX: Remove Test Function
-        if self.sim: self.test()
-        else: self.test_real()
+        # if self.sim: self.test()
+        # else: self.test_real()
 
     def test(self):
 
@@ -194,7 +194,7 @@ class Handover_Controller(Node):
         print(self.robot_toolbox.InverseKinematic(a))
         # print(self.robot_toolbox.InverseKinematic(b))
 
-        while self.pause_os and rclpy.ok() and self.get_parameter('pause_execution').get_parameter_value().bool_value:
+        while rclpy.ok() and self.get_parameter('pause_execution').get_parameter_value().bool_value:
             self.get_logger().info('Pausing execution...', once=True)
         self.set_parameters([Parameter('pause_execution', Parameter.Type.BOOL, True)])
 
@@ -210,7 +210,7 @@ class Handover_Controller(Node):
         # Publish Joint Trajectory
         # for pos in trajectory.q: self.publishSimulationJointStates(pos); self.rate.sleep()
 
-        while self.pause_os and rclpy.ok() and self.get_parameter('pause_execution').get_parameter_value().bool_value:
+        while rclpy.ok() and self.get_parameter('pause_execution').get_parameter_value().bool_value:
             self.get_logger().info('Pausing execution...', once=True)
         self.set_parameters([Parameter('pause_execution', Parameter.Type.BOOL, True)])
 
@@ -245,18 +245,19 @@ class Handover_Controller(Node):
         """ Test Function """
 
         # UR5e
-        # goal = [-1.57, -1.75, -1.57, -1.57, 1.75, -1.0]
-        # goal = [-1.0, -1.50, -1.0, -1.0, 1.75, -1.0]
+        goal = [1.57, -1.75, -1.57, -1.57, 1.75, -1.0]
+        goal = [1.0, -1.50, -1.0, -1.0, 1.75, -1.0]
 
         # UR10e
-        goal = [0.15, -1.71, 2.28, -2.13, -1.67, 0.39]
+        # goal = [0.15, -1.71, 2.28, -2.13, -1.67, 0.39]
         # goal = [0.45, -2.30, 2.28, -2.13, -1.67, 0.39]
 
         time.sleep(1)
         print(f'JointState Position: {self.joint_states.position}\n')
 
-        # trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, goal, 10, self.ros_rate)
-        trajectory = self.robot_toolbox.plan_trajectory([0.15, -1.71, 2.28, -2.13, -1.67, 0.39], goal, 10, self.ros_rate)
+        self.start_admittance = True
+        trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, goal, 10, self.ros_rate)
+        # trajectory = self.robot_toolbox.plan_trajectory([0.15, -1.71, 2.28, -2.13, -1.67, 0.39], goal, 10, self.ros_rate)
 
         print (trajectory, '\n\n')
         print (colored('Trajectory Positions:', 'green'),     f'\n\n {trajectory.q}\n')
@@ -268,9 +269,9 @@ class Handover_Controller(Node):
         cartesian_trajectory, i = self.robot_toolbox.joint2cartesianTrajectory(trajectory), 0
         print(colored(f'Trajectory Converted: ', 'green'), f'{time.time() - start}\n')
 
-        while (rclpy.ok()):
+        while (rclpy.ok() and self.start_admittance):
 
-            #     start = time.time()
+            # start = time.time()
 
             # Get Next Cartesian Goal | Increment Counter only if i < last trajectory point
             cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
@@ -321,16 +322,31 @@ class Handover_Controller(Node):
 
         """ Cartesian Goal Callback """
 
-        # Get Cartesian Goal
-        self.handover_cartesian_goal = data
-        self.goal_received = True
+        # Get Joint Goal from Cartesian Goal
+        self.handover_goal = self.robot_toolbox.InverseKinematic(data).q
+        self.goal_received, self.start_admittance = True, False
 
-    def trajectoryExecutionCallback(self, msg:Bool):
+    def jointGoalCallback(self, data:Float64MultiArray):
 
-        """ Trajectory Execution Callback """
+        """ Joint Goal Callback """
 
-        # Set Trajectory Execution Flags
-        self.trajectory_executed = msg.data
+        # Get Joint Handover Goal
+        self.handover_goal = data.data
+        self.goal_received, self.start_admittance = True, False
+
+    def stopAdmittanceServerCallback(self, req:Trigger.Request, res:Trigger.Response):
+
+        """ Stop Admittance Server Callback """
+
+        # Stop Robot
+        self.publishRobotVelocity([0.0] * 6)
+
+        print(colored('Admittance Controller Completed\n', 'yellow'))
+        self.goal_received, self.start_admittance = False, False
+
+        # Response Filling
+        res.success = True
+        return res
 
     def publishRobotVelocity(self, velocity:List[float]):
 
@@ -400,44 +416,44 @@ class Handover_Controller(Node):
         elif param.type_ == Parameter.Type.STRING_ARRAY:  return self.get_parameter(parameter_name).get_parameter_value().string_array_value
         else: raise ValueError(f'Parameter Type Not Supported: {param.type_}')
 
+    def plan_trajectory(self, handover_goal:List[float]):
+
+        """ Plan Trajectory """
+
+        # If Goal Received -> Plan Trajectory
+        print(colored(f'Goal Received: ', 'yellow'), f'[{handover_goal}] - Planning Trajectory')
+        trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, handover_goal, 10, self.ros_rate)
+        self.cartesian_trajectory, self.i = self.robot_toolbox.joint2cartesianTrajectory(trajectory), 0
+
+        # Start Admittance Controller
+        print(colored('Trajectory Planned - Starting Admittance Controller', 'green'))
+        self.goal_received, self.start_admittance = False, True
+
     def spinner(self):
 
         """ Main Spinner """
 
         # If Goal Received -> Plan Trajectory
-        if self.goal_received:
-
-            trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, self.robot_toolbox.InverseKinematic(self.handover_cartesian_goal), 20, 2000)
-            cartesian_trajectory, i = self.robot_toolbox.joint2cartesianTrajectory(trajectory), 0
-
-        # FIX: If Trajectory Executed -> Admittance Controller with Target = Trajectory Point until Handover is Completed
-        # while (rclpy.ok() and self.goal_received and not self.handover_completed):
-
-        # While Goal Received but Not Reached
-        # while (rclpy.ok() and self.goal_received and not self.is_goal_reached(self.handover_cartesian_goal, self.joint_states)):
+        if self.goal_received: self.plan_trajectory(self.handover_goal)
 
         # While Goal Received
-        while (rclpy.ok() and self.goal_received):
+        while (rclpy.ok() and self.start_admittance):
 
             # Get Next Cartesian Goal | Increment Counter only if i < last trajectory point
-            cartesian_goal = cartesian_trajectory[0][i], cartesian_trajectory[1][i], cartesian_trajectory[2][i]
-            if i < cartesian_trajectory[1].shape[0] - 1: i += 1
+            cartesian_goal = self.cartesian_trajectory[0][self.i], self.cartesian_trajectory[1][self.i], self.cartesian_trajectory[2][self.i]
+            if self.i < self.cartesian_trajectory[1].shape[0] - 1: self.i += 1
 
             # Compute Admittance Velocity
             self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.desired_joint_velocity, *cartesian_goal)
 
             # Compute PFL Velocity
-            self.desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(self.desired_joint_velocity,  self.joint_states)
+            # self.desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(self.desired_joint_velocity,  self.joint_states)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(self.desired_joint_velocity)
 
             # Sleep to ROS Rate
             self.rate.sleep()
-
-        # Stop Robot
-        self.publishRobotVelocity([0.0] * 6)
-        self.goal_received = False
 
 if __name__ == '__main__':
 
@@ -449,7 +465,6 @@ if __name__ == '__main__':
 
     # Register Signal Handler (CTRL+C)
     signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
 
     # Main Spinner Function
     while rclpy.ok():
