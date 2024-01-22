@@ -12,6 +12,7 @@ from roboticstoolbox.tools.trajectory import Trajectory, jtraj, ctraj
 # Import Spatial Math
 from spatialmath import SE3, SO3
 from scipy.spatial.transform import Rotation
+from scipy.interpolate import CubicSpline
 
 # Import ROS2 Libraries
 from geometry_msgs.msg import Pose
@@ -269,6 +270,65 @@ class UR_Toolbox():
         if self.debug: print (colored('Cartesian Accelerations:', 'green'), f'\n\n {np.array(cartesian_accelerations)}\n')
 
         return cartesian_positions, np.array(cartesian_velocities), np.array(cartesian_accelerations)
+
+    def get_cartesian_goal(self, splines:Tuple[CubicSpline, CubicSpline, CubicSpline], current_time:float=0.0, scaling_factor:float=1.0, rate:int=500) -> Tuple[List[SE3], np.ndarray, np.ndarray]:
+
+        """ Convert Joint Trajectory Spline Point to Cartesian Trajectory Point """
+
+        # Compute Time based on Scaling Factor
+        time = current_time + scaling_factor / rate
+
+        # Check Last Time Point
+        time = min(splines[0].x[-1], time)
+
+        # Get q, qd, qdd from Splines
+        q, q_dot, q_ddot = splines[0](time), splines[1](time), splines[2](time)
+
+        # Convert Joint to Cartesian Position, Velocity, Acceleration | x = ForwardKinematic(q) | x_dot = Jacobian(q) * q_dot | x_ddot = Jacobian(q) * q_ddot + JacobianDot(q, q_dot) * q_dot
+        return (self.ForwardKinematic(q), np.array(self.Jacobian(q) @ q_dot), np.array(self.Jacobian(q) @ q_ddot + self.JacobianDot(q, q_dot) @ q_dot)), time
+
+    def trajectory2spline(self, joint_trajectory:Trajectory) -> Tuple[CubicSpline, CubicSpline, CubicSpline]:
+
+        """ Convert Joint Trajectory to Spline """
+
+        # Type Assertion
+        assert type(joint_trajectory) is Trajectory, f"Joint Trajectory must be a Trajectory | {type(joint_trajectory)} given"
+        assert len(joint_trajectory.q) == len(joint_trajectory.qd) == len(joint_trajectory.qdd), f"Joint Trajectory Lengths must be Equal | {len(joint_trajectory.q)} | {len(joint_trajectory.qd)} | {len(joint_trajectory.qdd)} given"
+        assert len(joint_trajectory.t) == len(joint_trajectory.q), f"Joint Trajectory Time Length must be Equal to Joint Trajectory Length | {len(joint_trajectory.t)} | {len(joint_trajectory.q)} given"
+
+        # Create Cubic Spline for q, qd, qdd
+        spline_q, spline_qd, spline_qdd = CubicSpline(joint_trajectory.t, joint_trajectory.q, axis=0), CubicSpline(joint_trajectory.t, joint_trajectory.qd, axis=0), \
+                                          CubicSpline(joint_trajectory.t, joint_trajectory.qdd, axis=0)
+
+        # Spline Plot
+        if self.complete_debug: self.spline_plot([spline_q, spline_qd, spline_qdd], ['q','qd','qdd'], joint_trajectory.t)
+
+        # Return Splines
+        return spline_q, spline_qd, spline_qdd
+
+    def spline_plot(self, splines:List[CubicSpline], names:List[str], time:np.ndarray, num_point:int=1000):
+
+        """ Plot Splines """
+
+        import matplotlib.pyplot as plt
+
+        # Compute New Time Vector - New Vector from Spline
+        new_time = np.linspace(time[0], time[-1], 1000)
+        new_vectors = [spline(new_time) for spline in splines]
+
+        # Plot Spline
+        plt.figure(figsize=(10, 6))
+
+        for i, name in enumerate(names):
+
+            plt.subplot(3, 1, i+1)
+            plt.plot(new_time, new_vectors[i], linewidth=2)
+            plt.title(f'Cubic Spline for {name}')
+            plt.xlabel('Time')
+            plt.ylabel(f'{name}')
+
+        plt.tight_layout()
+        plt.show()
 
     def pose2array(self, pose:Pose) -> np.ndarray:
 
