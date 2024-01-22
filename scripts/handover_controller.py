@@ -22,7 +22,7 @@ from utils.robot_toolbox import UR_Toolbox
 
 # Import Admittance and PFL Controllers Classes
 from admittance import AdmittanceController
-from power_force_limiting import PowerForceLimitingController
+from safety_controller import SafetyController
 
 def signal_handler(sig, frame):
 
@@ -146,8 +146,8 @@ class Handover_Controller(Node):
         )
 
         # Initialize PFL Controller
-        # self.pfl_controller = PowerForceLimitingController(self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
-        self.pfl_controller = PowerForceLimitingController(self.robot_toolbox, robot_parameters, human_radius, True, True)
+        self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
+        # self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, True, True)
 
         # FIX: Remove Test Function
         # if self.sim: self.test()
@@ -485,7 +485,7 @@ class Handover_Controller(Node):
             self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.desired_joint_velocity, *cartesian_goal)
 
             # Compute PFL Velocity
-            self.desired_joint_velocity = self.pfl_controller.compute_pfl_velocity(self.desired_joint_velocity,  self.joint_states, self.human_point, self.human_vel)
+            self.desired_joint_velocity = self.safety_controller.compute_safety(self.desired_joint_velocity,  self.joint_states, self.human_point, self.human_vel)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(self.desired_joint_velocity)

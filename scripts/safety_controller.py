@@ -9,7 +9,7 @@ from sensor_msgs.msg import JointState
 
 from utils.robot_toolbox import UR_Toolbox
 
-class PowerForceLimitingController():
+class SafetyController():
 
     def __init__(self, robot:UR_Toolbox, robot_parameters:dict, human_radius:float=0.1, complete_debug:bool=False, debug:bool=False):
 
@@ -56,9 +56,9 @@ class PowerForceLimitingController():
         # Compute Distance (Euclidean Norm) Between Two Points
         return np.linalg.norm(np.array([v1.x - v2.x, v1.y - v2.y, v1.z - v2.z]))
 
-    def compute_ISO_vel_lim(self, P_H:Vector3, P_R:Vector3, hr_versor:Vector3, human_vel:Vector3) -> float:
+    def compute_SSM_vel_lim(self, P_H:Vector3, P_R:Vector3, hr_versor:Vector3, human_vel:Vector3) -> float:
 
-        """ Compute ISO/TS 15066 Velocity Limit """
+        """ Compute Speed-And-Separation Monitoring ISO/TS 15066 Velocity Limit """
 
         """
             A safety-aware kinodynamic architecture for human-robot collaboration
@@ -117,14 +117,29 @@ class PowerForceLimitingController():
         # Compute ISO/TS 15066 Velocity Limit
         return (Sp - Vh * (Ts + Tr) - C - Zd - Zr) / (Ts + Tr) - (a_max * Ts**2) / (2 * (Ts + Tr))
 
-    def compute_pfl_velocity(self, desired_joint_velocity:np.ndarray,  joint_states:JointState, human_point:Vector3, human_vel:Vector3)  -> np.ndarray:
-
         """ Compute Power and Force Velocity Limit (PFL) """
+
+    def compute_PFL_vel_lim(self, P_H:Vector3, P_R:Vector3, hr_versor:Vector3, human_vel:Vector3) -> float:
+
+        """ Compute Power and Force Limiting ISO/TS 15066 Velocity Limit """
+
+        # quando scaling va quasi a zero, switcha a pfl !
+        # quando la vel scalata scende sotto la soglia del pfl switcho -> es 200mm/s -> scendo
+        # ogni loop calcolo Vpfl, Vssm e ho la v desired
+        # se Vssm < Vpfl -> v desired = Vpfl
+        # a = 1 se vrobot < vpfl
+        # bound = max(vpfl, vssm)
+
+        pass
+
+    def compute_safety(self, desired_joint_velocity:np.ndarray,  joint_states:JointState, human_point:Vector3, human_vel:Vector3)  -> np.ndarray:
+
+        """ Compute Safety Limits Switching between PFL and SSM ISO/TS 15066 Limits """
 
         # Compute PH and PR Vector3
         P_H, P_R = human_point, self.compute_robot_point(joint_states)
 
-        if self.complete_debug: print(colored('\nPFL Controller:\n', 'green'))
+        if self.complete_debug: print(colored('\nSafety Controller:\n', 'green'))
         if self.complete_debug: print(colored('Human Point: ', 'green'), f'{P_H.x} {P_H.y} {P_H.z}')
         if self.complete_debug: print(colored('Robot Point: ', 'green'), f'{P_R.x} {P_R.y} {P_R.z}', '\n')
 
@@ -132,10 +147,10 @@ class PowerForceLimitingController():
         hr_versor = self.compute_versor(P_H, P_R)
         if self.complete_debug: print (colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}\n')
 
-        # Compute Maximum Robot Velocity according to ISO/TS 15066
-        vel_limit = self.compute_ISO_vel_lim(P_H, P_R, hr_versor, human_vel)
-        if self.complete_debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit, '\n')
-        elif self.debug: print(colored('ISO/TS 15066 Velocity Limit: ', 'green'), vel_limit)
+        # Compute SSM ISO/TS 15066 Velocity Limit
+        ssm_limit = self.compute_SSM_vel_lim(P_H, P_R, hr_versor, human_vel)
+        if self.complete_debug: print(colored('SSM - Velocity Limit: ', 'green'), ssm_limit, '\n')
+        elif self.debug: print(colored('SSM - Velocity Limit: ', 'green'), ssm_limit)
 
         # Compute Robot Projected Desired Velocity
         x_dot: np.ndarray = self.robot.Jacobian(np.array(joint_states.position)) @ np.array(desired_joint_velocity)
@@ -144,7 +159,7 @@ class PowerForceLimitingController():
         if self.complete_debug: print(colored('Robot Projected Desired Velocity: ', 'green'), Vr, '\n')
 
         # Compute Scaling Factor (Alpha = V_max / Vr)
-        scaling_factor =  vel_limit / Vr
+        scaling_factor =  ssm_limit / Vr
         if self.debug or self.complete_debug: print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
         if self.debug or self.complete_debug: print('-'*100, '\n')
         # if 0 < scaling_factor < 1: print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
@@ -154,7 +169,7 @@ class PowerForceLimitingController():
         print(colored('Human Point: ', 'green'), f'{P_H.x} {P_H.y} {P_H.z}')
         print(colored('Robot Point: ', 'green'), f'{P_R.x} {P_R.y} {P_R.z}')
         print(colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}')
-        print(colored('\nISO/TS 15066 Velocity Limit: ', 'green'), vel_limit)
+        print(colored('\nISO/TS 15066 Velocity Limit: ', 'green'), ssm_limit)
         print(colored('Robot Desired Velocity: ', 'green'), x_dot)
         print(colored('Robot Projected Desired Velocity: ', 'green'), Vr)
         print(colored('\nScaling Factor: ', 'green'), scaling_factor)
@@ -165,10 +180,3 @@ class PowerForceLimitingController():
         if scaling_factor >= 1: return desired_joint_velocity
         elif 0 < scaling_factor < 1: return desired_joint_velocity * scaling_factor
         elif scaling_factor <= 0: return desired_joint_velocity
-
-quando scaling va quasi a zero, switcha a pfl !
-quando la vel scalata scende sotto la soglia del pfl switcho -> es 200mm/s -> scendo
-ogni loop calcolo Vpfl, Vssm e ho la v desired
-se Vssm < Vpfl -> v desired = Vpfl
-a = 1 se vrobot < vpfl
-bound = max(vpfl, vssm)
