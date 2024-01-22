@@ -46,7 +46,7 @@ def generate_launch_description():
     use_feedback_velocity_arg = DeclareLaunchArgument('use_feedback_velocity', default_value='false')
     admittance_weight_arg = DeclareLaunchArgument('admittance_weight', default_value='0.2')
     complete_debug_arg = DeclareLaunchArgument('complete_debug', default_value='false')
-    human_radius_arg = DeclareLaunchArgument('human_radius', default_value='0.1')
+    human_radius_arg = DeclareLaunchArgument('human_radius', default_value='0.2')
     debug_arg = DeclareLaunchArgument('debug', default_value='false')
     robot_arg = DeclareLaunchArgument('robot', default_value='ur5e')
     sim_arg = DeclareLaunchArgument('sim', default_value='false')
