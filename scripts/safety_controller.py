@@ -118,7 +118,7 @@ class SafetyController():
         # Compute ISO/TS 15066 Velocity Limit
         return (Sp - Vh * (Ts + Tr) - C - Zd - Zr) / (Ts + Tr) - (a_max * Ts**2) / (2 * (Ts + Tr))
 
-    def compute_PFL_vel_lim(self, P_H:Vector3, P_R:Vector3, hr_versor:Vector3, human_vel:Vector3) -> float:
+    def compute_PFL_vel_lim(self) -> float:
 
         """ Compute Power and Force Limiting ISO/TS 15066 Velocity Limit """
 
@@ -219,14 +219,14 @@ class SafetyController():
             m_h = 3.6 kg               | effective mass of the human body region (Table A.3) - Upper arms and elbow joints + Hands and fingers.
             k   = 75 N/mm              | effective spring constant for specific body region (Table A.3) - max (Hands and fingers, Upper arms and elbow joints).
             p   = 190 N/cm^2           | maximum contact pressure for specific body area (Table A.2) - min (Hands and fingers, Upper arms and elbow joints).
-            A   = 200 cm^2             | Contact area A is defined by the smaller of the surface areas of the robot or the operator.
+            A   = 1 cm^2               | Contact area A is defined by the smaller of the surface areas of the robot or the operator.
                                          In situations where the body contact surface area is smaller than robot contact surface area, such as the operator’s
                                          hands or fingers, the body contact surface area shall be used. If contact between multiple body areas with  different
                                          potential surface contact areas could occur, the value A that yields the lowest v_rel_max shall be used. - Hands and fingers.
         """
 
-        # Define PFL Parameters
-        m_l, M, m_h, k, p, A = 1.0, np.sum(self.robot_mass[1:]), 3.6, 75, 190, 200
+        # Define PFL Parameters (kg, kg, N/m, N/cm^2, cm^2)
+        m_l, M, m_h, k, p, A = 1.0, np.sum(self.robot_mass[1:]), 3.6, 75e3, 190, 1
 
         # Effective Mass of the Robot
         m_r = M/2 + m_l
@@ -260,13 +260,12 @@ class SafetyController():
         elif self.debug: print(colored('SSM - Velocity Limit: ', 'green'), ssm_limit)
 
         # Compute PFL ISO/TS 15066 Velocity Limit
-        pfl_limit = self.compute_PFL_vel_lim(P_H, P_R, hr_versor, human_vel)
+        pfl_limit = self.compute_PFL_vel_lim()
         if self.complete_debug: print(colored('PFL - Velocity Limit: ', 'green'), pfl_limit, '\n')
         elif self.debug: print(colored('PFL - Velocity Limit: ', 'green'), pfl_limit)
 
         # Compute Velocity Limit (Maximum Between SSM and PFL ISO/TS 15066 Velocity Limits)
-        # FIX: vel_limit = max(ssm_limit, pfl_limit)
-        vel_limit = ssm_limit
+        vel_limit = max(ssm_limit, pfl_limit)
 
         # Compute Robot Projected Desired Velocity
         x_dot: np.ndarray = self.robot.Jacobian(np.array(joint_states.position)) @ np.array(desired_joint_velocity)
@@ -283,8 +282,9 @@ class SafetyController():
         print(colored('Human Point: ', 'green'), f'{P_H.x} {P_H.y} {P_H.z}')
         print(colored('Robot Point: ', 'green'), f'{P_R.x} {P_R.y} {P_R.z}')
         print(colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}')
-        print(colored('\nISO/TS 15066 Velocity Limit: ', 'green'), ssm_limit)
-        print(colored('Robot Desired Velocity: ', 'green'), x_dot)
+        print(colored('\nISO/TS 15066 SSM Velocity Limit: ', 'green'), ssm_limit)
+        print(colored('ISO/TS 15066 PFL Velocity Limit: ', 'green'), pfl_limit)
+        print(colored('\nRobot Desired Velocity: ', 'green'), x_dot)
         print(colored('Robot Projected Desired Velocity: ', 'green'), Vr)
         print(colored('\nScaling Factor: ', 'green'), scaling_factor)
         print('-'*100, '\n')
