@@ -60,7 +60,6 @@ class Handover_Controller(Node):
     # Initialize Class Variables
     goal_received, start_admittance = False, False
     joint_states, ft_sensor_data = JointState(), Wrench()
-    desired_joint_velocity = [0.0] * 6
 
     # Initialize Robot and Human Points Variables
     human_point, robot_base = Vector3(), Pose()
@@ -82,7 +81,7 @@ class Handover_Controller(Node):
         # Declare Parameters
         self.declare_parameters('', [('admittance_mass', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_damping', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_stiffness', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])])
         self.declare_parameters('', [('maximum_velocity', [1.05, 1.05, 1.57, 1.57, 1.57, 1.57]), ('maximum_acceleration', [0.57, 0.57, 0.57, 0.57, 0.57, 0.57])])
-        self.declare_parameters('', [('admittance_weight', 0.1), ('force_dead_zone', 4.0), ('torque_dead_zone', 1.0), ('human_radius', 0.1)])
+        self.declare_parameters('', [('admittance_weight', 0.1), ('force_dead_zone', 4.0), ('torque_dead_zone', 1.0), ('human_radius', 0.2)])
         self.declare_parameters('', [('use_feedback_velocity', False), ('sim', False), ('complete_debug', False), ('debug', False)])
 
         # Declare Robot Parameters
@@ -149,6 +148,10 @@ class Handover_Controller(Node):
         self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
         # self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, True, True)
 
+        # Controller Initialized
+        print(colored('Handover Controller Initialized\n', 'yellow'))
+        time.sleep(1)
+
     def jointStatesCallback(self, data:JointState):
 
         """ Joint States Callback """
@@ -192,16 +195,14 @@ class Handover_Controller(Node):
         human_pos = np.linalg.inv(self.robot_toolbox.pose2matrix(self.robot_base).A) @ self.robot_toolbox.pose2matrix(msg.pose).A
         human_pos = self.robot_toolbox.matrix2pose(human_pos)
 
-        # Compute Human Velocity
-        self.human_vel.x, self.human_vel.y, self.human_vel.z = (human_pos.position.x - self.human_point.x) / (time.time() - self.human_timer), \
-                                                               (human_pos.position.y - self.human_point.y) / (time.time() - self.human_timer), \
-                                                               (human_pos.position.z - self.human_point.z) / (time.time() - self.human_timer)
+        # Compute Human Velocity - Update Human Timer
+        # self.human_vel.x, self.human_vel.y, self.human_vel.z = (human_pos.position.x - self.human_point.x) / (time.time() - self.human_timer), \
+        #                                                        (human_pos.position.y - self.human_point.y) / (time.time() - self.human_timer), \
+        #                                                        (human_pos.position.z - self.human_point.z) / (time.time() - self.human_timer)
+        # self.human_timer = time.time()
 
         # TODO: Check with Human Velocity != 0
-        self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.0, 0.0, 0.0
-
-        # Update Human Timer
-        self.human_timer = time.time()
+        self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.25, 0.25, 0.25
 
         # Update Human Vector3 Message
         self.human_point.x, self.human_point.y, self.human_point.z = human_pos.position.x, human_pos.position.y, human_pos.position.z
@@ -303,11 +304,17 @@ class Handover_Controller(Node):
         # If Goal Received -> Plan Trajectory
         print(colored(f'Goal Received: ', 'yellow'), f'[{handover_goal}] - Planning Trajectory')
         trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, handover_goal, 10, self.ros_rate)
-        self.cartesian_trajectory, self.i = self.robot_toolbox.joint2cartesianTrajectory(trajectory), 0
+
+        # Convert Trajectory to Spline
+        self.spline_trajectory = self.robot_toolbox.trajectory2spline(trajectory)
+
+        # Initialize Admittance Controller Variables
+        self.desired_joint_velocity = [0.0] * 6
+        self.scaling_factor, self.current_time = 0.0, 0.0
+        self.goal_received, self.start_admittance = False, True
 
         # Start Admittance Controller
         print(colored('Trajectory Planned - Starting Admittance Controller', 'green'))
-        self.goal_received, self.start_admittance = False, True
 
     def spinner(self):
 
@@ -320,14 +327,13 @@ class Handover_Controller(Node):
         while (rclpy.ok() and self.start_admittance):
 
             # Get Next Cartesian Goal | Increment Counter only if i < last trajectory point
-            cartesian_goal = self.cartesian_trajectory[0][self.i], self.cartesian_trajectory[1][self.i], self.cartesian_trajectory[2][self.i]
-            if self.i < self.cartesian_trajectory[1].shape[0] - 1: self.i += 1
+            cartesian_goal, self.current_time = self.robot_toolbox.get_cartesian_goal(self.spline_trajectory, self.current_time, self.scaling_factor, self.ros_rate)
 
             # Compute Admittance Velocity
             self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.desired_joint_velocity, *cartesian_goal)
 
             # Compute PFL Velocity
-            self.desired_joint_velocity = self.safety_controller.compute_safety(self.desired_joint_velocity,  self.joint_states, self.human_point, self.human_vel)
+            self.desired_joint_velocity, self.scaling_factor = self.safety_controller.compute_safety(self.desired_joint_velocity,  self.joint_states, self.human_point, self.human_vel)
 
             # Publish Joint Velocity
             self.publishRobotVelocity(self.desired_joint_velocity)
