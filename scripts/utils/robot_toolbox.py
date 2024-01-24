@@ -42,13 +42,13 @@ class UR_Toolbox():
 
         # Robot Parameters
         robot_model, tool = robot_parameters['robot'], robot_parameters['tool'],
-        payload, reach, tcp_speed = robot_parameters['payload'], robot_parameters['reach'], robot_parameters['tcp_speed']
-        stopping_time, stopping_distance, position_repeatability = robot_parameters['stopping_time'], robot_parameters['stopping_distance'], robot_parameters['position_repeatability']
-        maximum_power, operating_power,operating_temperature = robot_parameters['maximum_power'], robot_parameters['operating_power'], robot_parameters['operating_temperature']
-        ft_range, ft_precision, ft_accuracy = robot_parameters['ft_range'], robot_parameters['ft_precision'], robot_parameters['ft_accuracy']
+        self.payload, self.reach, self.tcp_speed = robot_parameters['payload'], robot_parameters['reach'], robot_parameters['tcp_speed']
+        self.stopping_time, self.stopping_distance, self.position_repeatability = robot_parameters['stopping_time'], robot_parameters['stopping_distance'], robot_parameters['position_repeatability']
+        self.maximum_power, self.operating_power, self.operating_temperature = robot_parameters['maximum_power'], robot_parameters['operating_power'], robot_parameters['operating_temperature']
+        self.ft_range, self.ft_precision, self.ft_accuracy = robot_parameters['ft_range'], robot_parameters['ft_precision'], robot_parameters['ft_accuracy']
         a, d, alpha, offset = robot_parameters['a'], robot_parameters['d'], robot_parameters['alpha'], robot_parameters['theta']
         mass, center_of_mass = robot_parameters['mass'], [robot_parameters['center_of_mass'][i:i+3] for i in range(0, len(robot_parameters['center_of_mass']), 3)]
-        q_lim, qd_lim, qdd_lim = robot_parameters['q_limits'], robot_parameters['q_dot_limits'], robot_parameters['q_ddot_limits']
+        self.q_lim, self.qd_lim, self.qdd_lim = robot_parameters['q_limits'], robot_parameters['q_dot_limits'], robot_parameters['q_ddot_limits']
 
         # Compute Tool Transformation Matrix
         tool_transform = np.eye(4)
@@ -68,7 +68,7 @@ class UR_Toolbox():
         # Create Robot Model
         return DHRobot(
             [RevoluteDH(a=a_n, d=d_n, alpha=alpha_n, offset=offset_n, q_lim=[-q_lim_n, q_lim_n], m=mass_n, r=center_of_mass_n.tolist()) 
-             for a_n, d_n, alpha_n, offset_n, mass_n, center_of_mass_n, q_lim_n in zip(a, d, alpha, offset, mass, center_of_mass, q_lim)],
+             for a_n, d_n, alpha_n, offset_n, mass_n, center_of_mass_n, q_lim_n in zip(a, d, alpha, offset, mass, center_of_mass, self.q_lim)],
             name=robot_model, manufacturer='Universal Robot', symbolic=symbolic, tool=SE3(tool_transform))
 
     def load_kinematic_functions(self, robot_model:str) -> Tuple[Callable[[List[float]], np.ndarray], Callable[[List[float]], np.ndarray], Callable[[List[float], List[float]], np.ndarray]]:
