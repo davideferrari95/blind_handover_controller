@@ -9,7 +9,7 @@ from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import JointState
 
 from utils.robot_toolbox import UR_Toolbox
-from scipy.optimize import minimize
+from scipy.optimize import minimize, linprog, LinearConstraint
 import cvxpy as cp
 
 class SafetyController():
@@ -306,7 +306,7 @@ class SafetyController():
         def objective_function(alpha): return -alpha
 
         # ISO/TS 15066 Velocity Constraint
-        def iso_vel_constraint(alpha): return Jri * desired_joint_velocity * alpha - vel_limit
+        def iso_vel_constraint(alpha): return Jri @ desired_joint_velocity * alpha - vel_limit
 
         # Velocity Limits Constraints
         def v_min_constraint(alpha): return desired_joint_velocity * alpha - (-q_dot_lim)
@@ -317,8 +317,7 @@ class SafetyController():
         def a_max_constraint(alpha): return q_ddot_lim - (desired_joint_velocity * alpha - old_joint_velocity) * self.ros_rate
 
         # Optimization Problem (Bounds: 0 <= alpha <= 1)
-        # result = minimize(objective_function, alpha_initial_guess, bounds=((0.0, 1.0),), method='L-BFGS-B',
-        result = minimize(objective_function, alpha_initial_guess, bounds=((0.0, 1.0),),
+        result = minimize(objective_function, alpha_initial_guess, bounds=((0.0, 1.0),), method='L-BFGS-B',
             constraints=(
                 {'type': 'ineq', 'fun': iso_vel_constraint},
                 {'type': 'ineq', 'fun': v_min_constraint},
@@ -327,6 +326,107 @@ class SafetyController():
                 {'type': 'ineq', 'fun': a_max_constraint}
             )
         )
+
+        # Return Optimal Scaling Factor
+        return *result.x, Vr
+
+    def compute_alpha_scipy_linear_constraints(self, joint_states:JointState, desired_joint_velocity:np.ndarray, old_joint_velocity:np.ndarray, hr_versor:Vector3, vel_limit:float) -> float:
+
+        """ Compute Scaling Factor α - Optimization Problem """
+
+        # Compute Modified Jacobian Matrix (Jri)
+        Jri = np.transpose([hr_versor.x, hr_versor.y, hr_versor.z, 0, 0, 0]) @ self.robot.Jacobian(np.array(joint_states.position))
+
+        # Get Robot Velocity, Acceleration Limits - Convert to Numpy Array
+        q_dot_lim, q_ddot_lim = np.array(self.robot.qd_lim)/10000, np.array(self.robot.qdd_lim)
+        # print(colored('Velocity Limits: ', 'green'), q_dot_lim)
+
+        # Compute Alpha Initial Guess
+        alpha_initial_guess, Vr = self.compute_alpha(joint_states, desired_joint_velocity, hr_versor, vel_limit)
+
+        # Objective Function
+        def objective_function(alpha): return -alpha
+
+        # ISO/TS 15066 Velocity Constraint
+        iso_vel_constraint = LinearConstraint([Jri @ desired_joint_velocity], [-np.inf], [vel_limit])
+
+        # Velocity Limits Constraints
+        vel_constraints = [LinearConstraint([desired_joint_velocity[i]], [-q_dot_lim[i]], [q_dot_lim[i]]) for i in range(len(desired_joint_velocity))]
+
+        # Acceleration Limits Constraints
+        acc_constraint = [LinearConstraint([desired_joint_velocity[i]], [-q_ddot_lim[i]/self.ros_rate + old_joint_velocity[i]], [q_ddot_lim[i]/self.ros_rate + old_joint_velocity[i]]) for i in range(len(desired_joint_velocity))]
+
+        # Optimization Problem (Bounds: 0 <= alpha <= 1)
+        result = minimize(objective_function, alpha_initial_guess, bounds=((0.0, 1.0),),
+            constraints=[iso_vel_constraint] + vel_constraints + acc_constraint
+        )
+
+        # Return Optimal Scaling Factor
+        return *result.x, Vr
+
+    def compute_alpha_scipy_linear(self, joint_states:JointState, desired_joint_velocity:np.ndarray, old_joint_velocity:np.ndarray, hr_versor:Vector3, vel_limit:float) -> float:
+
+        """ Compute Scaling Factor α - Optimization Problem """
+
+        """
+        minimize
+
+            c @ x
+
+        such that
+
+            A_ub @ x <= b_ub
+            A_eq @ x == b_eq
+            lb <= x <= ub
+
+        """
+
+        # Compute Modified Jacobian Matrix (Jri)
+        Jri = np.transpose([hr_versor.x, hr_versor.y, hr_versor.z, 0, 0, 0]) @ self.robot.Jacobian(np.array(joint_states.position))
+
+        # Get Robot Velocity, Acceleration Limits - Convert to Numpy Array
+        q_dot_lim, q_ddot_lim = np.array(self.robot.qd_lim)/10000, np.array(self.robot.qdd_lim)
+        # print(colored('Velocity Limits: ', 'green'), q_dot_lim)
+
+        # Compute Alpha Initial Guess
+        alpha_initial_guess, Vr = self.compute_alpha(joint_states, desired_joint_velocity, hr_versor, vel_limit)
+
+        """ Problem Definition
+
+            minimize
+
+                -1 @ alpha
+
+            such that
+
+                Jri @ desired_joint_velocity @ alpha <= vel_limit
+                desired_joint_velocity @ alpha <= q_dot_lim
+                desired_joint_velocity @ alpha >= -q_dot_lim -> -desired_joint_velocity @ alpha <= q_dot_lim
+                (desired_joint_velocity @ alpha - old_joint_velocity) * self.ros_rate <= q_ddot_lim
+                (desired_joint_velocity @ alpha - old_joint_velocity) * self.ros_rate >= -q_ddot_lim -> - (desired_joint_velocity @ alpha - old_joint_velocity) * self.ros_rate <= q_ddot_lim
+
+         """
+
+        # Objective Function
+        c = [-1]
+
+        # ISO/TS 15066 Velocity Constraint
+        A, b = [[Jri @ desired_joint_velocity]], [vel_limit]
+
+        # Velocity Limits Constraints
+        A = A + [[+desired_joint_velocity[i]] for i in range(len(desired_joint_velocity))]
+        A = A + [[-desired_joint_velocity[i]] for i in range(len(desired_joint_velocity))]
+        b = b + [q_dot_lim[i] for i in range(len(q_dot_lim))]
+        b = b + [q_dot_lim[i] for i in range(len(q_dot_lim))]
+
+        # Acceleration Limits Constraints
+        A = A + [[+desired_joint_velocity[i]] for i in range(len(desired_joint_velocity))]
+        A = A + [[-desired_joint_velocity[i]] for i in range(len(desired_joint_velocity))]
+        b = b + [q_ddot_lim[i]/self.ros_rate + old_joint_velocity[i] for i in range(len(q_ddot_lim))]
+        b = b + [q_ddot_lim[i]/self.ros_rate - old_joint_velocity[i] for i in range(len(q_ddot_lim))]
+
+        # Optimization Problem (Bounds: 0 <= alpha <= 1)
+        result = linprog(c, A_ub=A, b_ub=b, bounds=[(0.0, 1.0)])
 
         # Return Optimal Scaling Factor
         return *result.x, Vr
@@ -372,8 +472,9 @@ class SafetyController():
         vel_limit = ssm_limit
 
         # Compute Scaling Factor α
-        scaling_factor, Vr = self.compute_alpha_cvxpy(joint_states, desired_joint_velocity, old_joint_velocity, hr_versor, vel_limit)
-        # scaling_factor, Vr = self.compute_alpha_scipy(joint_states, desired_joint_velocity, old_joint_velocity, hr_versor, vel_limit)
+        # scaling_factor, Vr = self.compute_alpha_cvxpy(joint_states, desired_joint_velocity, old_joint_velocity, hr_versor, vel_limit)
+        # scaling_factor, Vr = self.compute_alpha_scipy_linear(joint_states, desired_joint_velocity, old_joint_velocity, hr_versor, vel_limit)
+        scaling_factor, Vr = self.compute_alpha_scipy(joint_states, desired_joint_velocity, old_joint_velocity, hr_versor, vel_limit)
         # scaling_factor, Vr = self.compute_alpha(joint_states, desired_joint_velocity, hr_versor, vel_limit)
 
         # print('-'*100, '\n')
