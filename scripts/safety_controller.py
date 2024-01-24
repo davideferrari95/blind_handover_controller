@@ -2,21 +2,24 @@
 
 import os, numpy as np
 from termcolor import colored
+from typing import List, Tuple
 
 # Import ROS2 Messages
 from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import JointState
 
 from utils.robot_toolbox import UR_Toolbox
+from scipy.optimize import minimize
+import cvxpy as cp
 
 class SafetyController():
 
-    def __init__(self, robot:UR_Toolbox, robot_parameters:dict, human_radius:float=0.1, complete_debug:bool=False, debug:bool=False):
+    def __init__(self, robot:UR_Toolbox, robot_parameters:dict, human_radius:float=0.1, ros_rate:int=500, complete_debug:bool=False, debug:bool=False):
 
         """ Power Force Limiting (PFL) Controller """
 
         # Class Parameters
-        self.robot = robot
+        self.robot, self.ros_rate = robot, ros_rate
         self.complete_debug, self.debug = complete_debug, debug or complete_debug
 
         # Human Parameters
@@ -144,7 +147,7 @@ class SafetyController():
                 m_l: effective payload of the robot system, including tooling and workpiece.
                 M:   total mass of the moving parts of the robot.
 
-            v_rel = F / sqrt(μ*k) = p*A / sqrt(μ*k) -> v_rel_max = p_max*A / sqrt(μ*k)
+            v_rel = F / sqrt(μ*k) = p*A / sqrt(μ*k) -> v_rel_max = F_max / sqrt(μ*k) = p_max*A / sqrt(μ*k)
 
         """
 
@@ -218,6 +221,7 @@ class SafetyController():
             M   = sum(link 2 - link 6) | total mass of the moving parts of the robot.
             m_h = 3.6 kg               | effective mass of the human body region (Table A.3) - Upper arms and elbow joints + Hands and fingers.
             k   = 75 N/mm              | effective spring constant for specific body region (Table A.3) - max (Hands and fingers, Upper arms and elbow joints).
+            F   = 140 N                | maximum contact force for specific body region (Table A.2) - min (Hands and fingers, Upper arms and elbow joints).
             p   = 190 N/cm^2           | maximum contact pressure for specific body area (Table A.2) - min (Hands and fingers, Upper arms and elbow joints).
             A   = 1 cm^2               | Contact area A is defined by the smaller of the surface areas of the robot or the operator.
                                          In situations where the body contact surface area is smaller than robot contact surface area, such as the operator’s
@@ -226,7 +230,7 @@ class SafetyController():
         """
 
         # Define PFL Parameters (kg, kg, N/m, N/cm^2, cm^2)
-        m_l, M, m_h, k, p, A = 1.0, np.sum(self.robot_mass[1:]), 3.6, 75e3, 190, 1
+        m_l, M, m_h, k, F = 1.0, np.sum(self.robot_mass[1:]), 3.6, 75e3, 140
 
         # Effective Mass of the Robot
         m_r = M/2 + m_l
@@ -235,41 +239,105 @@ class SafetyController():
         μ = (1/m_h + 1/m_r)**-1
 
         # Compute Relative Speed Between the Robot and the Human Body Region
-        v_rel_max = p*A / np.sqrt(μ*k)
+        v_rel_max = F / np.sqrt(μ*k)
 
         return v_rel_max
 
-    def compute_safety(self, desired_joint_velocity:np.ndarray,  joint_states:JointState, human_point:Vector3, human_vel:Vector3)  -> np.ndarray:
+    def compute_alpha_cvxpy(self, joint_states:JointState, desired_joint_velocity:np.ndarray, old_joint_velocity:np.ndarray, hr_versor:Vector3, vel_limit:float) -> float:
 
-        """ Compute Safety Limits Switching between PFL and SSM ISO/TS 15066 Limits """
+        """ Compute Scaling Factor α - Optimization Problem """
 
-        # Compute PH and PR Vector3
-        P_H, P_R = human_point, self.compute_robot_point(joint_states)
+        # Compute Modified Jacobian Matrix (Jri)
+        Jri = np.transpose([hr_versor.x, hr_versor.y, hr_versor.z, 0, 0, 0]) @ self.robot.Jacobian(np.array(joint_states.position))
 
-        if self.complete_debug: print(colored('\nSafety Controller:\n', 'green'))
-        if self.complete_debug: print(colored('Human Point: ', 'green'), f'{P_H.x} {P_H.y} {P_H.z}')
-        if self.complete_debug: print(colored('Robot Point: ', 'green'), f'{P_R.x} {P_R.y} {P_R.z}', '\n')
+        # Get Robot Velocity, Acceleration Limits - Convert to Numpy Array
+        q_dot_lim, q_ddot_lim = np.array(self.robot.qd_lim)/10000, np.array(self.robot.qdd_lim)
+        # print(colored('Velocity Limits: ', 'green'), q_dot_lim)
 
-        # Compute Versor
-        hr_versor = self.compute_versor(P_H, P_R)
-        if self.complete_debug: print (colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}\n')
+        # Compute Alpha Initial Guess
+        alpha_initial_guess, Vr = self.compute_alpha(joint_states, desired_joint_velocity, hr_versor, vel_limit)
 
-        # Compute SSM ISO/TS 15066 Velocity Limit
-        ssm_limit = self.compute_SSM_vel_lim(P_H, P_R, hr_versor, human_vel)
-        if self.complete_debug: print(colored('SSM - Velocity Limit: ', 'green'), ssm_limit, '\n')
-        elif self.debug: print(colored('SSM - Velocity Limit: ', 'green'), ssm_limit)
+        # Define Variables and Objective Function
+        alpha = cp.Variable(1)
+        alpha.value = [alpha_initial_guess]
+        objective = cp.Minimize(-alpha)
 
-        # Compute PFL ISO/TS 15066 Velocity Limit
-        pfl_limit = self.compute_PFL_vel_lim()
-        if self.complete_debug: print(colored('PFL - Velocity Limit: ', 'green'), pfl_limit, '\n')
-        elif self.debug: print(colored('PFL - Velocity Limit: ', 'green'), pfl_limit)
+        # Define Constraints
+        constraints = [
 
-        # Compute Velocity Limit (Maximum Between SSM and PFL ISO/TS 15066 Velocity Limits)
-        vel_limit = max(ssm_limit, pfl_limit)
+            # Alpha Bounds
+            0 <= alpha,
+            alpha <= 1,
+
+            # ISO/TS 15066 Velocity Constraint
+            Jri * desired_joint_velocity * alpha <= vel_limit,
+
+            # Velocity Limits Constraints
+            desired_joint_velocity * alpha <= q_dot_lim,
+            -q_dot_lim <= desired_joint_velocity * alpha,
+
+            # Acceleration Limits Constraints
+            (desired_joint_velocity * alpha - old_joint_velocity) * self.ros_rate <= q_ddot_lim,
+            -q_ddot_lim <= (desired_joint_velocity * alpha - old_joint_velocity) * self.ros_rate,
+        ]
+
+        # Construct and Solve the Problem
+        prob = cp.Problem(objective, constraints)
+        prob.solve(solver=cp.ECOS, warm_start=True)
+
+        # Return Optimal Scaling Factor
+        return *alpha.value, Vr
+
+    def compute_alpha_scipy(self, joint_states:JointState, desired_joint_velocity:np.ndarray, old_joint_velocity:np.ndarray, hr_versor:Vector3, vel_limit:float) -> float:
+
+        """ Compute Scaling Factor α - Optimization Problem """
+
+        # Compute Modified Jacobian Matrix (Jri)
+        Jri = np.transpose([hr_versor.x, hr_versor.y, hr_versor.z, 0, 0, 0]) @ self.robot.Jacobian(np.array(joint_states.position))
+
+        # Get Robot Velocity, Acceleration Limits - Convert to Numpy Array
+        q_dot_lim, q_ddot_lim = np.array(self.robot.qd_lim)/10000, np.array(self.robot.qdd_lim)
+        # print(colored('Velocity Limits: ', 'green'), q_dot_lim)
+
+        # Compute Alpha Initial Guess
+        alpha_initial_guess, Vr = self.compute_alpha(joint_states, desired_joint_velocity, hr_versor, vel_limit)
+
+        # Objective Function
+        def objective_function(alpha): return -alpha
+
+        # ISO/TS 15066 Velocity Constraint
+        def iso_vel_constraint(alpha): return Jri * desired_joint_velocity * alpha - vel_limit
+
+        # Velocity Limits Constraints
+        def v_min_constraint(alpha): return desired_joint_velocity * alpha - (-q_dot_lim)
+        def v_max_constraint(alpha): return q_dot_lim - desired_joint_velocity * alpha
+
+        # Acceleration Limits Constraints
+        def a_min_constraint(alpha): return (desired_joint_velocity * alpha - old_joint_velocity) * self.ros_rate - (-q_ddot_lim)
+        def a_max_constraint(alpha): return q_ddot_lim - (desired_joint_velocity * alpha - old_joint_velocity) * self.ros_rate
+
+        # Optimization Problem (Bounds: 0 <= alpha <= 1)
+        # result = minimize(objective_function, alpha_initial_guess, bounds=((0.0, 1.0),), method='L-BFGS-B',
+        result = minimize(objective_function, alpha_initial_guess, bounds=((0.0, 1.0),),
+            constraints=(
+                {'type': 'ineq', 'fun': iso_vel_constraint},
+                {'type': 'ineq', 'fun': v_min_constraint},
+                {'type': 'ineq', 'fun': v_max_constraint},
+                {'type': 'ineq', 'fun': a_min_constraint},
+                {'type': 'ineq', 'fun': a_max_constraint}
+            )
+        )
+
+        # Return Optimal Scaling Factor
+        return *result.x, Vr
+
+    def compute_alpha(self, joint_states:JointState, desired_joint_velocity:np.ndarray, hr_versor:Vector3, vel_limit:float) -> Tuple[float, float]:
+
+        """ Compute Scaling Factor α """
 
         # Compute Robot Projected Desired Velocity
         x_dot: np.ndarray = self.robot.Jacobian(np.array(joint_states.position)) @ np.array(desired_joint_velocity)
-        Vr = np.dot(np.array([x_dot[0], x_dot[1], x_dot[2]]), np.array([hr_versor.x, hr_versor.y, hr_versor.z]))
+        Vr:float = np.dot(np.array([x_dot[0], x_dot[1], x_dot[2]]), np.array([hr_versor.x, hr_versor.y, hr_versor.z]))
         if self.complete_debug: print(colored('Robot Desired Velocity: ', 'green'), x_dot)
         if self.complete_debug: print(colored('Robot Projected Desired Velocity: ', 'green'), Vr, '\n')
 
@@ -278,17 +346,50 @@ class SafetyController():
         if self.debug or self.complete_debug: print(colored('Scaling Factor: ', 'green'), scaling_factor, '\n')
         if self.debug or self.complete_debug: print('-'*100, '\n')
 
-        print('-'*100, '\n')
-        print(colored('Human Point: ', 'green'), f'{P_H.x} {P_H.y} {P_H.z}')
-        print(colored('Robot Point: ', 'green'), f'{P_R.x} {P_R.y} {P_R.z}')
-        print(colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}')
-        print(colored('\nISO/TS 15066 SSM Velocity Limit: ', 'green'), ssm_limit)
-        print(colored('ISO/TS 15066 PFL Velocity Limit: ', 'green'), pfl_limit)
-        print(colored('\nRobot Desired Velocity: ', 'green'), x_dot)
-        print(colored('Robot Projected Desired Velocity: ', 'green'), Vr)
-        print(colored('\nScaling Factor: ', 'green'), scaling_factor)
-        print('-'*100, '\n')
-        os.system('clear')
+        return scaling_factor, Vr
+
+    def compute_safety(self, desired_joint_velocity:np.ndarray, old_joint_velocity:np.ndarray, joint_states:JointState, human_point:Vector3, human_vel:Vector3)  -> np.ndarray:
+
+        """ Compute Safety Limits Switching between PFL and SSM ISO/TS 15066 Limits """
+
+        # Compute PH and PR Vector3 - HR Versor
+        P_H, P_R = human_point, self.compute_robot_point(joint_states)
+        hr_versor = self.compute_versor(P_H, P_R)
+
+        if self.complete_debug: print(colored('\nSafety Controller:\n', 'green'))
+        if self.complete_debug: print(colored('Human Point: ', 'green'), f'{P_H.x} {P_H.y} {P_H.z}')
+        if self.complete_debug: print(colored('Robot Point: ', 'green'), f'{P_R.x} {P_R.y} {P_R.z}', '\n')
+        if self.complete_debug: print (colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}\n')
+
+        # Compute SSM, PFL ISO/TS 15066 Velocity Limits
+        ssm_limit = self.compute_SSM_vel_lim(P_H, P_R, hr_versor, human_vel)
+        pfl_limit = self.compute_PFL_vel_lim()
+        if self.complete_debug or self.debug: print(colored('SSM - Velocity Limit: ', 'green'), ssm_limit)
+        if self.complete_debug or self.debug: print(colored('PFL - Velocity Limit: ', 'green'), pfl_limit, '\n')
+
+        # Compute Velocity Limit (Maximum Between SSM and PFL ISO/TS 15066 Velocity Limits)
+        # vel_limit = max(ssm_limit, pfl_limit)
+        vel_limit = ssm_limit
+
+        # Compute Scaling Factor α
+        scaling_factor, Vr = self.compute_alpha_cvxpy(joint_states, desired_joint_velocity, old_joint_velocity, hr_versor, vel_limit)
+        # scaling_factor, Vr = self.compute_alpha_scipy(joint_states, desired_joint_velocity, old_joint_velocity, hr_versor, vel_limit)
+        # scaling_factor, Vr = self.compute_alpha(joint_states, desired_joint_velocity, hr_versor, vel_limit)
+
+        # print('-'*100, '\n')
+        # print(colored('Human Point: ', 'green'), f'{P_H.x} {P_H.y} {P_H.z}')
+        # print(colored('Robot Point: ', 'green'), f'{P_R.x} {P_R.y} {P_R.z}')
+        # print(colored('HR Versor: ', 'green'), f'{hr_versor.x} {hr_versor.y} {hr_versor.z}')
+        # print(colored('\nISO/TS 15066 SSM Velocity Limit: ', 'green'), ssm_limit)
+        # print(colored('ISO/TS 15066 PFL Velocity Limit: ', 'green'), pfl_limit)
+        # print(colored('\nRobot Desired Velocity: ', 'green'), desired_joint_velocity)
+        # print(colored('Robot Projected Desired Velocity: ', 'green'), Vr)
+        # print(colored('\nScaling Factor: ', 'green'), scaling_factor)
+        # print('-'*100, '\n')
+        # os.system('clear')
+
+        print(colored('\nRobot Desired Velocity: ', 'green'), desired_joint_velocity)
+        print(colored('Scaling Factor: ', 'green'), scaling_factor)
 
         # Return Scaled Joint Velocity
         return scaling_factor * desired_joint_velocity, scaling_factor

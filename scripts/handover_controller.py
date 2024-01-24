@@ -145,8 +145,8 @@ class Handover_Controller(Node):
         )
 
         # Initialize PFL Controller
-        self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.complete_debug, self.debug)
-        # self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, True, True)
+        self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.ros_rate, self.complete_debug, self.debug)
+        # self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.ros_rate, True, True)
 
         # Controller Initialized
         print(colored('Handover Controller Initialized\n', 'yellow'))
@@ -202,7 +202,8 @@ class Handover_Controller(Node):
         # self.human_timer = time.time()
 
         # TODO: Check with Human Velocity != 0
-        self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.25, 0.25, 0.25
+        # self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.25, 0.25, 0.25
+        self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.0, 0.0, 0.0
 
         # Update Human Vector3 Message
         self.human_point.x, self.human_point.y, self.human_point.z = human_pos.position.x, human_pos.position.y, human_pos.position.z
@@ -222,8 +223,8 @@ class Handover_Controller(Node):
         self.goal_received, self.start_admittance = False, False
 
         # Stop Robot
-        self.desired_joint_velocity = [0.0] * 6
-        self.publishRobotVelocity(self.desired_joint_velocity)
+        self.old_joint_velocity = [0.0] * 6
+        self.publishRobotVelocity(self.old_joint_velocity)
 
         # Response Filling
         res.success = True
@@ -309,7 +310,7 @@ class Handover_Controller(Node):
         self.spline_trajectory = self.robot_toolbox.trajectory2spline(trajectory)
 
         # Initialize Admittance Controller Variables
-        self.desired_joint_velocity = [0.0] * 6
+        self.old_joint_velocity = np.array(self.joint_states.velocity)
         self.scaling_factor, self.current_time = 0.0, 0.0
         self.goal_received, self.start_admittance = False, True
 
@@ -330,13 +331,13 @@ class Handover_Controller(Node):
             cartesian_goal, self.current_time = self.robot_toolbox.get_cartesian_goal(self.spline_trajectory, self.current_time, self.scaling_factor, self.ros_rate)
 
             # Compute Admittance Velocity
-            self.desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.desired_joint_velocity, *cartesian_goal)
+            desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.old_joint_velocity, *cartesian_goal)
 
-            # Compute PFL Velocity
-            self.desired_joint_velocity, self.scaling_factor = self.safety_controller.compute_safety(self.desired_joint_velocity,  self.joint_states, self.human_point, self.human_vel)
+            # Compute Safety Scaling Factor (Safety: SSM | PFL)
+            self.old_joint_velocity, self.scaling_factor = self.safety_controller.compute_safety(desired_joint_velocity, self.old_joint_velocity, self.joint_states, self.human_point, self.human_vel)
 
             # Publish Joint Velocity
-            self.publishRobotVelocity(self.desired_joint_velocity)
+            self.publishRobotVelocity(self.old_joint_velocity)
 
             # Sleep to ROS Rate
             self.rate.sleep()
