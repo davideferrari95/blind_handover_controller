@@ -48,4 +48,4 @@ handover_controller:
     # Kinematic Limits
     q_limits:      [6.2832, 6.2832, 6.2832, 6.2832, 6.2832, 6.2832] # rad
     q_dot_limits:  [2.0944, 2.0944, 3.1415, 3.1415, 3.1415, 3.1415] # rad/s
-    q_ddot_limits: [0.20, 0.20, 0.20, 0.20, 0.20, 0.20] # rad/s^2
+    q_ddot_limits: [0.80, 0.80, 0.80, 0.80, 0.80, 0.80] # rad/s^2
