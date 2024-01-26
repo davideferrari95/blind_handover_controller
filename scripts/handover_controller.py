@@ -246,6 +246,9 @@ class Handover_Controller(Node):
         # Publish Message
         if rclpy.ok(): self.joint_velocity_publisher.publish(msg)
 
+        # Publish Simulation Joint States
+        if self.sim: self.publishSimulationJointStates(self.joint_states.position, velocity)
+
     def publishSimulationJointStates(self, pos:List[float], vel:List[float]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], eff:List[float]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]):
 
         """ Publish Simulation Joint States """
@@ -301,6 +304,9 @@ class Handover_Controller(Node):
     def plan_trajectory(self, handover_goal:List[float]):
 
         """ Plan Trajectory """
+
+        # Simulation
+        if self.sim: self.joint_states.position, self.joint_states.velocity = [0.1] * 6, [0.0] * 6
 
         # If Goal Received -> Plan Trajectory
         print(colored(f'Goal Received: ', 'yellow'), f'[{handover_goal}] - Planning Trajectory')
