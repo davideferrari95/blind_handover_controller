@@ -1,0 +1,112 @@
+1. Tactile Sensors - Hand - Similar:
+
+    ✘ Tactile Sensor to Detect Object Shape @cancelled(23-11-03 20:24)
+    https://www.sciencedirect.com/science/article/pii/S0921889022002007
+
+    ✔ A human-inspired controller for fluid human-robot handovers (16 DOF Humanoid Arm) @done(23-11-06 10:30)
+    https://ieeexplore.ieee.org/abstract/document/7803296
+
+        - Studies on forces exerted during handover analyze the relationship between grip force (the amount of force applied on the object by each participants' fingers) and load force (the proportion of the object's weight sustained by each participant). For example, Mason and MacKenzie [1] found that human-human handovers involve a gradual modulation of the grip force while both participants implicitly share (and transfer) the load force. The main coordination mechanism is haptic feedback in order to coordinate the transfer force rates; the grip force increases for the receiver and decreases for the passer.
+
+        - Another consistent finding in prior studies is that the time required to transfer the object from the passer to the receiver is between 300 and 500 ms [1]–​[3]. Even Endo et al. [3], who outfitted the receiver with a glove in some of the trials to attenuate the tactile information, found that while the glove did increase the duration of the average contact period slightly (from 324 ms to 334 ms), it did not have a significant effect on the grip force profiles.
+
+        - Two additional useful findings by Chan et al. [2] are that the passer has a “post-unloading” phase towards the end of the handover, where the giver applies a positive grip force even though their load force is approximately zero. This, according to the authors, implies that the giver takes responsibility for the safety of the object. Additionally, their studies found that the receiver adjusts the load transfer rate depending on the weight of the object, and concluded that the receiver is in charge of the handover timing. The recommendations resulting from this study were used to develop a linear controller that varied the robot's grip force according to the sensed load force during a robot-to-human handover [4]. However, the robot controller implementations based on these studies focus solely on the grip force modulation, with no arm motion during the handover.
+
+        These studies have important implications for designing robot handover controllers:
+
+            - the load force drives the dynamics of the passing phase of handovers
+            - handovers must be fast and respond quickly to changes in the load force.
+            - This means our robot must be able to quickly measure the proportion of the object's load it supports, and quickly adapt its grip force on the object during the passing phase of a handover.
+
+2. Control Strategy:
+
+    ✘ Baxter Bimanual Handover @cancelled(23-11-06 10:31)
+    https://ieeexplore.ieee.org/document/9319192
+
+        - Study the release handover phase
+                
+    ✔ Implementation of a robot-human object handover controller on a compliant underactuated hand using joint position error measurements for grip force and load force estimations @done(23-11-06 10:46)
+    https://ieeexplore.ieee.org/abstract/document/6907004
+
+        - Grip and Load Forces Estimation
+
+    ✘ Handover Control for Human-Robot and Robot-Robot Collaboration @cancelled(23-11-06 10:59)
+    https://www.frontiersin.org/articles/10.3389/frobt.2021.672995/full
+
+        - For instance, in all operation types, the giver shows the object to the receiver in a zone within its field of view, and the receiver has to reach such location even if the giver moves before giving the object.
+
+        - When the human receiver starts grasping the object holding part of the load, the robot feels less weight and it enters into the Sharing state. This is done by comparing the initial measured weight fwz,i with the actual force component fwz, by checking the condition
+        - fwz > νsfwz,i,      0<νs<1, where the scale factor νs establishes the amount of weight the human has to withstand before the robot enters the sharing state.
+
+        - measuring the forces at the fingertips. When the cue is detected, the robot opens the gripper and the handover is complete. The haptic cue is detected if the following condition holds
+        - fwz>ψz∨fpull>ψp,    ψz,ψp>0,(16), where fpull is the measured external force along the pulling direction, defined as the projection of the y axis of the grasp frame on the xy-plane of the world frame 
+
+    ✔ On-line Motion Prediction and Adaptive Control in Human-Robot Handover Tasks @done(23-11-06 10:59)
+    https://ieeexplore.ieee.org/abstract/document/8948750
+        
+        - GP Regression to Estimate Human Trajectories
+
+        - Take the last predicted human motion point as reference target for the robot trajectory planning.
+        - Standard impedance controller with a danger index dx (more closer, more is the danger index) taken into account in the stifness matrix computation.
+    
+    ✘ Failure Recovery in Robot–Human Object Handover @cancelled(23-11-06 11:28)
+    https://ieeexplore.ieee.org/abstract/document/8341961
+
+        - decision to release the object is made by the giver once she is confident that the receiver has grasped the object or is capable of doing so
+        - object load is gradually transferred from the giver to the receiver
+        - total duration of the object transfer phase (transfer) is also measured and reported to be between 300 to 700 ms, in an experiment where a baton shaped object with variable weight of 480 to 680 g was handed over between the participants
+        - system-model pulling forces graph
+
+        - Force modelling equation of the physical phase
+
+    ☐ Reactive Human-to-Robot Handovers of Arbitrary Objects
+    https://ieeexplore.ieee.org/document/9561170
+
+        - vision-based system that enables reactive human-to-robot handovers of unknown objects
+        - accurate and real-time hand and object segmentation, and describe how we extend 6-DOF GraspNet [3] with temporal refinement to generate temporally consistent and collision-free grasps given the segmented hand point cloud and object point cloud.
+        - grasp generation and dynamic grasp selection
+        - H2R only and no study on physical interaction phase
+
+3. General Reviews:
+
+    ✔ Object Handovers: A Review for Robotics @done(23-11-06 09:40)
+    https://ieeexplore.ieee.org/abstract/document/9444288
+
+        For each phase of the handover, this figure describes giver’s and receiver’s tasks. -> Utile
+
+        Prehandover phase start with an object / task request -> communication !! (gaze, pose, voice)
+        
+        Physical handover phase:
+            - the giver possesses the object and thus controls its stability
+            - giver can couple vision and force feedback to understand to which extent the receiver has grasped the object
+            - giver starts releasing the object in order to allow the full transition of the object to the receiver
+        
+        Grip Force Modulation:
+
+            - Visual feedback augments the anticipatory control in starting the release of the object, by predicting and detecting the collision created by the hand of the receiver on the object
+            - From this perspective, the speed of the grip force release seems to be correlated with the reaching velocity of the receiver (i.e., the faster the approach, the faster the giver releases the object)
+            - the giver is in charge of the safety of the object, while the receiver modulates the efficiency of the object exchange
+            - excess grip force to ensure that the object does not slip or drop
+            - linear relationship between grip force and load force is observed, except when either actor is supporting very little of the object load [172] [174]
+            - feedback from a force sensor mounted on the robot’s wrist can be robustly used to modulate the release of an object [176]
+        
+        Safety:
+
+            - collision free planning, CBF
+            - safety index is used in planning augmented by human motion prediction in [190]
+            - ensure minimum-jerk motions at the end effector (soft motion trajectory planning [197])
+            - H2R paradigm, the robot aims to make contact and grasp only the object, avoiding any contact with the human partner (achieved leveraging vision)
+            - R2H paradigm, the robot must 1) approach the human safely (without contacting/hitting the partner) and orient the object appropriately (such as pointing the tip of a knife away, or presenting the handle of a cup of hot coffee, or not spilling any of the contents of the object, such as the coffee in the cup) [85] and 2) safely release the object when the human partner has grasped it [118]. 
+        
+        Metrics:
+
+            - image of metrics
+        
+    ✘ Progress in Human-Robot Collaboration for Object Handover @cancelled(23-11-05 15:00)
+    https://ieeexplore.ieee.org/abstract/document/8955665
+
+        - Sensing tool and strategies
+    
+    
+
+

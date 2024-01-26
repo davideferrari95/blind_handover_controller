@@ -1,0 +1,78 @@
+ROS2 - Package Conversion:
+
+    ✔ Created a ROS2 example package. @done(24-01-26 13:01)
+    ✔ Converted `Alexa Skill` and `Alexa Conversations` to ROS2. @done(24-01-26 13:01)
+    ✔ Re-Written `Node-RED` for ROS2 Integration. @done(24-01-26 13:01)
+    ✔ Converted `UR Robot Drivers` to ROS2. @done(24-01-26 13:01)
+
+Handover Controller:
+
+    ✔ Generated Trajectories with `Polynomial Trajectory Generator` (5th Order). @done(24-01-26 13:01)
+    ✔ Gripper Compensation in External Force Sensor Readings. ⇾ Teach Pendant Tool Compensation. @done(24-01-26 13:03)
+    ✔ Implemented the `Admittance Controller` following a Planned Trajectory. @done(24-01-26 13:01)
+    ✔ Implemented the `SSM Controller` ensuring the Safety ISO/TS 15066. @done(24-01-26 13:01)
+    ✔ Implemented the `PFL Controller` ensuring the Safety ISO/TS 15066. @done(24-01-26 13:01)
+    ✔ Implemented the Scaling Factor Optimization Péroblem for the `Safety Controller`. @done(24-01-26 13:01)
+
+Load Transfer - FT Sensor:
+
+    - Study the `Force-Load Transfer` between the Robot and the Human.
+    - Can we use the Force-Load Transfer to detect the Handover Success ?
+    - Find a Robust strategy to detect the Handover Success.
+
+    - Little User-Study to find the Force-Load Transfer:
+
+        - Robot pass an object to the human (Different Objects / Weights / Sizes / Positions).
+        - Get the Force-Load Transfer Curve between the Robot and the Human.
+        - Create a `Force-Load Transfer` Model with PyTorch.
+        - Test the Model with different Objects / Weights / Sizes / Positions.
+
+    - `Neural Network` to detect the Handover Success:
+
+        - Use the `Force-Load Transfer` Model to detect the Handover Release.
+
+Sensing and Communication:
+
+    - Implement the `6IMPOSE` Object Recognition.
+    - Implement the `Alexa Conversations` or `Gesture Recognition` for the Handover Request.
+    - Implement the Handover Procedure with the `Automatic Success Detection` and `Release` of the Object.
+
+
+`------------------------------------------------------------------------------------------------------------------------------------------------------`
+
+
+Future Implementations:
+
+    Personal Safety:
+
+        - Comparative experiment ? with *"ISO Safety"* vs *"Personal Safety"*.
+        - Training task with ISO, communication and possible interactions.
+
+        - Define How to Change Robot Behavior in according to the User Requests.
+
+        - Define Risk Indicators:
+
+            - Contact risk between *human head / body* and robot is different from *human hands / arms* and robot (ISO/TS 15066 - Appendix A.2 - 29 Body Areas / 12 Body Regions).
+            - If Risk Indicator is too high ⇾ Slow Down.
+            - NB: Biomechanical limits (max pressure and force) in ISO/TS 15066 are based on conservative estimation and scientific research on pain sensation.
+
+        - Experiment:
+
+            - Robot must fill some small boxes with objects (e.g. screws / pen drives etc.).
+            - User must apply a label on each box.
+            - User can ask robot to *Slow Down* / *Stop* / *Move Further* / *Hurry Up*.
+            - Goal for the user is to finish the task as fast as possible.
+
+        - Collect data about the interaction:
+
+            - Execution Time
+            - Experience in Robotics
+            - Trust / Confidence in the Robot / Application / Task
+            - User Satisfaction / Stress / Fear / Anxiety / Frustration
+
+        - Idea:
+
+            - Graph with User Experience (trust / confidence) vs Robot Behavior (speed / acceleration) in relation with ISO.
+            - How much the velocity / distance is further from the ISO standard.
+            - How much the fear / anxiety / frustration is higher / lower.
+            - Coward approach ⇾ ISO makes fear ⇾ Slow down the Robot.

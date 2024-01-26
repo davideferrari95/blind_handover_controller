@@ -1,0 +1,137 @@
+1. State-Of-The-Art:
+
+    ✔ State-Of-The-Art Research @done(23-11-06 21:38)
+    ☐ Check Human-Human Force-Load Handover
+
+    Architecture Idea:
+
+        ☐ Handover Request:
+
+            - Alexa Conversation
+            - Mediapipe Gesture Recognition
+
+        ☐ Object Detection:
+
+            - Optitrack Real-Time Tracking
+            - 6IMPOSE RGBD (RealSense) Camera Object Detection
+
+        ✔ Trajectory Planning / Replanning: @done(24-01-26 12:56)
+
+            ✔ Dynamic Planner @done(24-01-26 12:59)
+            ✔ Impedance Controller (Safety Index?) @done(24-01-26 12:59)
+
+        ☐ Physical Handover:
+
+            - Force Sensor Handover Detection (Gripper Load Modulation)
+            - RGBD Camera Handover Detection
+
+        ☐ Post-Handover:
+
+            - Place (Dynamic Planner)
+            - Usage (Some tool-usage algorithm)
+
+    Task:
+
+        ☐ H2R and R2H Blind Handover
+
+        ☐ R2H Paradigm:
+
+           - Ask for the Object (Alexa / Point-At)
+           - Load the Network -> Search for the Object (6IMPOSE)
+           - Pick Object with Best Grasping Pose (Dynamic Planer?)
+           - Handover to the User Hand -> Recognize the Force-Load Transition
+
+        ☐ H2R Paradigme:
+
+            - Ask for Placing this Object (Alexa / Gesture)
+            - Load the Network -> Compute Object Position avoiding Hand
+            - Pick the Object from Hand -> Recognize the Force-Load Transition
+            - Put in the Box
+
+    Contributions:
+
+        ☐ Experimental Validation
+        ☐ Integrated Blind Handover Architecture, while Respecting Safety ISO/TS 15066 Limitations
+        ☐ Communication
+
+2. Impedance Controller in ROS2:
+
+    ✔ Write the ROS2 Example Package @done(23-11-29 12:35)
+    ✔ Convert Alexa in ROS2 @done(23-11-30 14:05)
+    ✔ Convert Alexa Conversation in ROS2 @done(23-12-10 17:40)
+    ☐ Convert Mediapipe Gesture Recognition in ROS2
+    ✔ Convert Robot Driver in ROS2 + `move_robot` @done(23-12-10 17:40)
+    ✔ Implement Admittance Controller in ROS2 @done(24-01-26 12:59)
+
+3. Design the Experiment:
+
+    User Study:
+
+        ☐ Open-Loop Handover   -> Robot Leave the Object on the Hand
+        ☐ Closed-Loop Handover -> Robot Leave the Object on the Hand and Wait for the User to Grab it (Negative Payload)
+
+4. Handover Impedance Controller:
+
+    ☐ Implement Force-Load Physical Handover with FT-Sensor
+    ☐ Test H2R and R2H with fixed locations / optitrack
+
+    Implementazione PFL:
+
+        ✔ calcolo la distanza tra uomo e robot @done(24-01-26 12:59)
+        ✔ calcolo il valore di vrel max da normativa iso. stabilendo quali siano le moving parts del robot e dell'uomo @done(24-01-26 12:59)
+    
+        ✔ trasponi velocità (proiezione) del robot lungo la direzione di separazione @done(24-01-26 12:59)
+        ✔ trasponi velocità (proiezione) umano ungo la direzione di separazione (direzione distaza uomo robot) @done(24-01-26 12:59)
+    
+        ✔ calcolo la velocità relativa tra uomo e robot @done(24-01-26 12:59)
+        ✔ se la velocità relativa è maggiore di vrel max allora taglio la velocità del robot @done(24-01-26 12:59)
+
+5. Needed Tools:
+
+    Alexa Conversation:
+
+        ☐ Develop Alexa Conversation Custom Skill in ROS2
+
+    Gesture Recognition:
+
+        ☐ Mediapipe Recognition
+        ☐ Measure the Angle of the Arm to understand the Handover Intention Gesture
+        ☐ Cone of Availability in Space
+
+6. Experiment Scenario:
+
+    ☐ Plan the Experiment Scenario
+    ☐ Select and Buy the Needed Tools
+    ☐ Setup the Experiment
+    ☐ Test and Evaluation
+    ☐ User Study
+
+----------------------------------------------------------------------------------------------------------
+
+State Machine Controller:
+
+    ☐ Flexbe / SMACC / Others State Machine Implementation in ROS2
+
+    ☐ Creation of each function states:
+
+        - Handover Request (R2H/H2R, object or location informations...)
+        - Object Detection (compute the handover/pick position)
+        - Trajectory Planning (real time replanning ? compute human hand position) + Execution
+        - Physical Handover Phase (force transition ?)
+        - Post Handover Phase
+
+    ☐ R2H State-Machine:
+
+        - Handover Request
+        - Object Detection (compute the pick position)
+        - Trajectory Planning (real time replanning ? compute human hand position) + Execution
+        - Physical Handover Phase
+        - Post Handover Phase (END)
+
+    ☐ H2R State-Machine:
+
+        - Handover Request (Robot handover request, human request to place an object)
+        - Hand/Object Detection (compute the handover position)
+        - Trajectory Planning (real time replanning ? compute human hand position) + Execution
+        - Physical Handover Phase
+        - Post Handover Phase (Place / Usage of the object)
