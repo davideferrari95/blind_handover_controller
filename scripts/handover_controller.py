@@ -19,6 +19,7 @@ from geometry_msgs.msg import Pose, PoseStamped, Wrench, Vector3
 # Import Robot and UR_RTDE Move Classes
 from utils.move_robot import UR_RTDE_Move
 from utils.robot_toolbox import UR_Toolbox
+from utils.kinematic_wrapper import delete_pycache_folders, PACKAGE_PATH
 
 # Import Admittance and PFL Controllers Classes
 from admittance import AdmittanceController
@@ -48,6 +49,9 @@ def signal_handler(sig, frame):
     # Publish Stop Message
     joint_group_vel_controller_publisher.publish(stop_msgs)
     ur_stop.get_logger().error('Stop Signal Received. Stopping UR...')
+
+    # Delete __pycache__ Folders
+    delete_pycache_folders(PACKAGE_PATH)
 
     # Shutdown ROS
     time.sleep(1)

@@ -1,10 +1,28 @@
-import ctypes
+import ctypes, os, shutil
 import numpy as np
 from spatialmath import SE3
 
 # Get Lib Path
 from pathlib import Path
-LIB_PATH = f'{str(Path(__file__).resolve().parents[2])}/lib'
+PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
+LIB_PATH = f'{PACKAGE_PATH}/lib'
+
+def delete_pycache_folders(project_dir:str):
+
+    """ Delete Python `__pycache__` Folders Function """
+
+    # Walk Through the Project Folders
+    for root, dirs, files in os.walk(project_dir):
+
+        if "__pycache__" in dirs:
+
+            # Get `__pycache__` Path
+            pycache_folder = os.path.join(root, "__pycache__")
+            print(f"Deleting {pycache_folder}")
+
+            # Delete `__pycache__`
+            try: shutil.rmtree(pycache_folder)
+            except Exception as e: print(f"An error occurred while deleting {pycache_folder}: {e}")
 
 class Kinematic_Wrapper:
 
