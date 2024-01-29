@@ -136,7 +136,8 @@ class Handover_Controller(Node):
         self.human_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_mocap/right_wrist/pose', self.humanPointCallback, 1)
         self.robot_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_mocap/UR5/pose', self.robotPointCallback, 1)
 
-        # Service Servers
+        # Service Clients and Servers
+        self.zero_ft_sensor_client  = self.create_client(Trigger, '/ur_rtde/zeroFTSensor')
         self.stop_admittance_server = self.create_service(Trigger, '/handover/stop', self.stopAdmittanceServerCallback)
 
         # Initialize Admittance Controller
@@ -233,6 +234,18 @@ class Handover_Controller(Node):
         # Response Filling
         res.success = True
         return res
+
+    def zeroFTSensor(self):
+
+        """ Call Zero FT-Sensor Service """
+
+        # Wait For Service
+        self.zero_ft_sensor_client.wait_for_service(timeout_sec=1.0)
+
+        # Call Service - Asynchronous
+        future = self.zero_ft_sensor_client.call_async(Trigger.Request())
+        rclpy.spin_until_future_complete(self, future)
+        return future.result()
 
     def publishRobotVelocity(self, velocity:List[float]):
 
@@ -359,6 +372,9 @@ if __name__ == '__main__':
 
     # Initialize Class
     handover_controller = Handover_Controller('handover_controller', 500)
+
+    # Zero FT Sensor
+    handover_controller.zeroFTSensor()
 
     # Register Signal Handler (CTRL+C)
     signal.signal(signal.SIGINT, signal_handler)
