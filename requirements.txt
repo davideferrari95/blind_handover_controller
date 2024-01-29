@@ -3,4 +3,5 @@ numpy
 numpy-quaternion
 roboticstoolbox-python
 scipy
+spatialmath
 termcolor
