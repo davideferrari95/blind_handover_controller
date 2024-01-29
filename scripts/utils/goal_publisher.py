@@ -11,11 +11,13 @@ class HandoverGoalPublisher(Node):
     """ Handover Goal Publisher Node """
 
     # UR5e
-    goal1 = [1.57, -1.75, -1.57, -1.57, 1.75, -1.0]
-    goal2 = [1.0, -1.50, -1.0, -1.0, 1.75, -1.0]
+    # goal1 = [1.57, -1.75, -1.57, -1.57, 1.75, -1.0]
+    # goal2 = [0.57, -1.75, -1.57, -1.57, 1.75, -1.0]
+    # goal2 = [1.0, -1.50, -1.0, -1.0, 1.75, -1.0]
 
     # UR10e
-    # goal1 = [0.15, -1.71, 2.28, -2.13, -1.67, 0.39]
+    goal1 = [0.15, -1.71, 2.28, -2.13, -1.67, 0.39]
+    goal2 = [0.45, -1.71, 2.28, -2.13, -1.67, 0.39]
     # goal2 = [0.45, -2.30, 2.28, -2.13, -1.67, 0.39]
 
     def __init__(self):
@@ -23,8 +25,11 @@ class HandoverGoalPublisher(Node):
         # Node Initialization
         super().__init__('Handover_Goal_Publisher')
 
+        # ROS2 Publisher & Client Initialization
         self.joint_goal_pub = self.create_publisher(Float64MultiArray, '/handover/joint_goal', 1)
         self.stop_admittance_client = self.create_client(Trigger, '/handover/stop')
+
+        time.sleep(1)
 
     def publishJointGoal(self, joint_goal:List[float]):
 
@@ -65,16 +70,16 @@ if __name__ == '__main__':
     # Publish Joint Goal 1
     print('Publishing Joint Goal 1')
     node.publishJointGoal(node.goal1)
-    time.sleep(30)
+    time.sleep(20)
 
     # Stop Handover
-    node.stopHandover()
-    time.sleep(1)
+    # node.stopHandover()
+    # time.sleep(1)
 
     # Publish Joint Goal 2
     print('Publishing Joint Goal 2')
     node.publishJointGoal(node.goal2)
-    time.sleep(30)
+    time.sleep(20)
 
     # Stop Handover
-    node.stopHandover()
+    # node.stopHandover()
