@@ -41,7 +41,52 @@ Sensing and Communication:
 `------------------------------------------------------------------------------------------------------------------------------------------------------`
 
 
+Force-Load Transfer User Study - Experiment Details:
+
+    Task Description:
+
+        - Robot must pass an object to the human (Different Objects / Weights / Sizes / Positions).
+        - Human must take the object from the robot (Sometimes head-on, other times from behind).
+        - Human must communicate when he has the object -> Robot must release the object (Button Pressure).
+
+        - Different Objects with Different Weights and Sizes.
+        - Dataset Creation without Implementing Safety (Always PFL) or Communication.
+        - Pick the Object from an Hardcoded Position and go to an Handover Hardcoded Position.
+        - Start Data Collection when Robot Pick the Object until Release.
+
+    ✘ Vice-versa Experiment ?: @cancelled(24-01-30 15:19)
+
+        ✘ Human must pass an object to the robot. @cancelled(24-01-30 15:19)
+        ✘ Robot must take the object from the human hand -> Human must release the object. @cancelled(24-01-30 15:19)
+        ✘ More simple to implement, no neural network needed, only perception. @cancelled(24-01-30 15:19)
+
+    Data Collection:
+
+        - Force-Load Transfer Curve -> FT Sensor Readings.
+        - Release Time -> Synchronized with the FT Sensor Readings.
+        - Velocity of the Robot ? (Handover occurs when the velocity is ~ zero).
+        - Position of the Robot ? (Handover occurs when the position is ~ handover goal).
+
+    NN Training:
+
+        - Create a `Force-Load Transfer` Model with PyTorch.
+        - Test the Model with different Objects / Weights / Sizes / Positions.
+        - Output: Do Nothing / Release Object.
+
+        - Loss Function: Binary Cross Entropy.
+        - Optimizer: Adam.
+        - Epochs: 1000.
+        - Batch Size: 32.
+
+
+`------------------------------------------------------------------------------------------------------------------------------------------------------`
+
+
 Future Implementations:
+
+    Handover "On Flight":
+
+        - Handover occurs while robot is moving
 
     Personal Safety:
 
