@@ -123,7 +123,7 @@ class Handover_Controller(Node):
         print(colored('    robot:', 'green'),                 f'\t\t\t"{robot_parameters["robot"]}"\n')
 
         # Publishers
-        self.joint_velocity_publisher   = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
+        self.joint_velocity_publisher = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
         if self.sim: self.joint_simulation_publisher = self.create_publisher(JointState, '/joint_states', 1)
 
         # Subscribers
@@ -191,6 +191,8 @@ class Handover_Controller(Node):
         # Get Joint Handover Goal
         self.handover_goal = data.data
         self.goal_received, self.start_admittance = True, False
+
+        # TODO: Add Trajectory Execution Time
 
     def humanPointCallback(self, msg:PoseStamped):
 
