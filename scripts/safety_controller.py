@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import os, numpy as np
+import numpy as np
 from termcolor import colored
 
 # Import ROS2 Messages
