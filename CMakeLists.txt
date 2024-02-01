@@ -32,6 +32,7 @@ ament_python_install_package(scripts/utils)
 install(PROGRAMS
   scripts/handover_controller.py
   scripts/utils/goal_publisher.py
+  scripts/utils/ft_load_experiment.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
