@@ -245,9 +245,8 @@ class Handover_Controller(Node):
         self.zero_ft_sensor_client.wait_for_service(timeout_sec=1.0)
 
         # Call Service - Asynchronous
-        future = self.zero_ft_sensor_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future)
-        return future.result()
+        result:Trigger.Response = self.zero_ft_sensor_client.call(Trigger.Request())
+        return result.success
 
     def publishRobotVelocity(self, velocity:List[float]):
 
@@ -288,6 +287,9 @@ class Handover_Controller(Node):
     def is_goal_reached(self, goal:Pose, joint_states:JointState):
 
         """ Check if Goal is Reached """
+
+        # Spin Once
+        rclpy.spin_once(self)
 
         # Joint Goal to Pose
         joint_goal = self.move_robot.IK(goal)
@@ -376,7 +378,8 @@ if __name__ == '__main__':
     handover_controller = Handover_Controller('handover_controller', 500)
 
     # Zero FT Sensor
-    handover_controller.zeroFTSensor()
+    try: handover_controller.zeroFTSensor()
+    except: handover_controller.get_logger().error('Zero FT Sensor Service Not Available')
 
     # Register Signal Handler (CTRL+C)
     signal.signal(signal.SIGINT, signal_handler)
