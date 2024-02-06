@@ -18,14 +18,15 @@ class FTSensorExperiment(Node):
 
     """ FT-Sensor Experiment Node """
 
-    def __init__(self, robot:str='UR5e', ros_rate:int=500):
+    # Initial Joint States Data
+    joint_states = JointState()
+    joint_states.name = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+    joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    def __init__(self, robot:str='UR5e'):
 
         # Node Initialization
         super().__init__('FT_Sensor_Experiment')
-
-        # ROS2 Rate
-        self.ros_rate = ros_rate
-        self.rate = self.create_rate(ros_rate)
 
         # ROS2 Publisher & Client Initialization
         self.joint_goal_pub = self.create_publisher(Float64MultiArray, '/handover/joint_goal', 1)
@@ -85,22 +86,28 @@ class FTSensorExperiment(Node):
         """ Call Stop Handover Service """
 
         # Wait For Service
-        self.stop_admittance_client.wait_for_service(timeout_sec=1.0)
+        if self.stop_admittance_client.wait_for_service(timeout_sec=1.0):
 
-        # Call Service - Asynchronous
-        future = self.stop_admittance_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future)
-        return future.result()
+            # Call Service - Asynchronous
+            future = self.stop_admittance_client.call_async(Trigger.Request())
+            rclpy.spin_until_future_complete(self, future)
+            return future.result()
+
+        else: self.get_logger().error('Stop Handover Service Not Available')
 
     def zeroFTSensor(self):
 
         """ Call Zero FT Sensor Service """
 
         # Wait For Service
-        self.zero_ft_sensor_client.wait_for_service(timeout_sec=1.0)
+        if self.zero_ft_sensor_client.wait_for_service(timeout_sec=1.0):
 
-        # Call Service - Asynchronous
-        self.zero_ft_sensor_client.call_async(Trigger.Request())
+            # Call Service - Asynchronous
+            future = self.zero_ft_sensor_client.call_async(Trigger.Request())
+            rclpy.spin_until_future_complete(self, future)
+            return future.result()
+
+        else: self.get_logger().error('Zero FT Sensor Service Not Available')
 
     def RobotiQGripperControl(self, position:int, speed:int=100, force:int=100):
 
@@ -170,9 +177,10 @@ class FTSensorExperiment(Node):
 
         """ Handover """
 
-        # Home and Open Gripper
-        self.move_and_wait(self.HOME, 'HOME', 5.0, False)
+        # Open Gripper and Go to Home
+        self.zeroFTSensor()
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
+        self.move_and_wait(self.HOME, 'HOME', 5.0, False)
         time.sleep(1)
 
         # Go to Object Goal
@@ -197,6 +205,7 @@ class FTSensorExperiment(Node):
         # Stop Save Data Thread
         print('Stopping Data Save')
         self.save_data_pub.publish(Bool(data=False))
+        self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
         time.sleep(1)
 
     def main(self):
