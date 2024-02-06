@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import rclpy, time, os, datetime
+import rclpy, time, os, datetime, threading
 from rclpy.node import Node
 
 # Package Path
@@ -23,6 +23,8 @@ class SaveData(Node):
     joint_states.name = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
     joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
+    # Data Lists
+    joint_states_data_list, ft_sensor_data_list = [], []
 
     def __init__(self, ros_rate:int=500):
 
@@ -33,13 +35,15 @@ class SaveData(Node):
         self.ros_rate = ros_rate
         self.rate = self.create_rate(ros_rate)
 
+        # Spin in a separate thread - for ROS2 Rate
+        self.spin_thread = threading.Thread(target=rclpy.spin, args=(self, ), daemon=True)
+        self.spin_thread.start()
+
         # ROS2 Subscriber Initialization
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states',       self.jointStatesCallback, 1)
         self.ft_sensor_subscriber   = self.create_subscription(Wrench,     '/ur_rtde/ft_sensor',  self.FTSensorCallback, 1)
         self.save_data_subscriber   = self.create_subscription(Bool,       '/handover/save_data', self.SaveDataCallback, 1)
 
-        # Create Save Files
-        self.create_save_files(f'{PACKAGE_PATH}/data/', 'ft_sensor_data.csv', 'joint_states_data.csv')
         time.sleep(1)
 
     def create_save_files(self, path:str, ft_sensor_file:str, joint_states_file:str):
@@ -54,7 +58,7 @@ class SaveData(Node):
         )
 
         if not folders: last_folder_number = 0
-        else: last_folder_number = int(folders[0].split('_')[1].split(' ')[0])
+        else: last_folder_number = int(folders[0].split(' ')[1].split(' ')[0])
 
         # Create Save Directory
         try_dir = f'Test {last_folder_number + 1} - [{datetime.datetime.now().strftime("%Y-%m-%d -- %H-%M-%S")}]'
@@ -62,10 +66,6 @@ class SaveData(Node):
 
         # Create Save Files
         self.FT_SENSOR_FILE, self.JOINT_STATES_FILE = f'{path}/{try_dir}/{ft_sensor_file}', f'{path}/{try_dir}/{joint_states_file}'
-
-        # Write Header - Save Data FT Sensor & Joint States Files
-        with open(self.FT_SENSOR_FILE, 'w') as file: file.write('fx,fy,fz,tx,ty,tz\n')
-        with open(self.JOINT_STATES_FILE, 'w') as file: file.write(f'{self.joint_states.name[0]},{self.joint_states.name[1]},{self.joint_states.name[2]},{self.joint_states.name[3]},{self.joint_states.name[4]},{self.joint_states.name[5]}\n')
 
     def jointStatesCallback(self, data:JointState):
 
@@ -89,41 +89,59 @@ class SaveData(Node):
         self.save_data = data.data
         if self.save_data == False: self.stop_save_data = True
 
+    def save(self):
+
+        """ Save Data """
+
+        print('Saving Data...')
+
+        # Create Save Files
+        self.create_save_files(f'{PACKAGE_PATH}/data/', 'ft_sensor_data.csv', 'joint_states_data.csv')
+
+        # Save Data - FT Sensor
+        with open(self.FT_SENSOR_FILE, 'w') as file:
+
+            # Write Header
+            file.write('fx,fy,fz,tx,ty,tz\n')
+
+            for data in self.ft_sensor_data_list:
+
+                # Append FT Sensor Data - Force and Torque
+                file.write(str(data.force.x) + ',' + str(data.force.y) + ',' + str(data.force.z) + ',' + str(data.torque.x) + ',' + str(data.torque.y) + ',' + str(data.torque.z) + '\n')
+
+        # Save Data - Joint States
+        with open(self.JOINT_STATES_FILE, 'w') as file:
+
+            # Write Header
+            file.write(f'{self.joint_states.name[0]},{self.joint_states.name[1]},{self.joint_states.name[2]},{self.joint_states.name[3]},{self.joint_states.name[4]},{self.joint_states.name[5]}\n')
+
+            for data in self.joint_states_data_list:
+
+                # Append Joint States Data - Velocity
+                file.write(str(data.velocity[0]) + ',' + str(data.velocity[1]) + ',' + str(data.velocity[2]) + ',' + str(data.velocity[3]) + ',' + str(data.velocity[4]) + ',' + str(data.velocity[5]) + '\n')
+
     def main(self):
 
         """ Save Data Loop """
 
-        with open(self.FT_SENSOR_FILE, 'a') as ft_sensor_file, open(self.JOINT_STATES_FILE, 'a') as joint_states_file:
+        while rclpy.ok():
 
-            while rclpy.ok():
+            # Spin Once
+            # rclpy.spin_once(self, timeout_sec=1.0/float(self.ros_rate))
 
-                # Spin Once
-                rclpy.spin_once(self)
+            # Break if Stop Save Data, Continue if Save Data is False                
+            if self.stop_save_data: break
+            if not self.save_data: continue
 
-                # Break if Stop Save Data, Continue if Save Data is False                
-                if self.stop_save_data: break
-                if not self.save_data: continue
+            # Append Joint States and FT-Sensor Data
+            self.get_logger().info('Collecting Data...', throttle_duration_sec=2.0)
+            self.joint_states_data_list.append(self.joint_states)
+            self.ft_sensor_data_list.append(self.ft_sensor_data)
 
-                # Append FT-Sensor Data
-                ft_sensor_file.write(str(time.time()) + ',')
-                ft_sensor_file.write(str(self.ft_sensor_data.force.x) + ',')
-                ft_sensor_file.write(str(self.ft_sensor_data.force.y) + ',')
-                ft_sensor_file.write(str(self.ft_sensor_data.force.z) + ',')
-                ft_sensor_file.write(str(self.ft_sensor_data.torque.x) + ',')
-                ft_sensor_file.write(str(self.ft_sensor_data.torque.y) + ',')
-                ft_sensor_file.write(str(self.ft_sensor_data.torque.z) + '\n')
+            # Rate Sleep
+            self.rate.sleep()
 
-                # Append Joint States Data
-                joint_states_file.write(str(self.joint_states.velocity[0]) + ',')
-                joint_states_file.write(str(self.joint_states.velocity[1]) + ',')
-                joint_states_file.write(str(self.joint_states.velocity[2]) + ',')
-                joint_states_file.write(str(self.joint_states.velocity[3]) + ',')
-                joint_states_file.write(str(self.joint_states.velocity[4]) + ',')
-                joint_states_file.write(str(self.joint_states.velocity[5]) + '\n')
-
-                # Rate Sleep
-                self.rate.sleep()
-
+        self.save()
         print('Data Saved')
 
 if __name__ == '__main__':
@@ -132,7 +150,7 @@ if __name__ == '__main__':
     rclpy.init()
 
     # Create Node
-    node = SaveData()
+    node = SaveData(500)
 
     # Run Node
     node.main()
