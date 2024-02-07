@@ -31,9 +31,9 @@ ament_python_install_package(scripts/utils)
 # Install Python Scripts
 install(PROGRAMS
   scripts/handover_controller.py
-  scripts/utils/goal_publisher.py
-  scripts/utils/ft_load_experiment.py
-  scripts/utils/save_data.py
+  scripts/experiments/goal_publisher.py
+  scripts/experiments/ft_load_experiment.py
+  scripts/experiments/save_data.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -3,8 +3,9 @@
 import rclpy, time, os, datetime, threading
 from rclpy.node import Node
 
-# Package Path
-from kinematic_wrapper import PACKAGE_PATH
+# Get Data Path
+from pathlib import Path
+PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 if not os.path.exists(f'{PACKAGE_PATH}/data'): os.mkdir(f'{PACKAGE_PATH}/data')
 
 # Messages & Services
