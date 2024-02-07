@@ -41,9 +41,10 @@ class FTSensorExperiment(Node):
         # UR5e
         if robot == 'UR5e':
 
-            self.HOME     = [-1.2482317129718226, -1.6220842800536097, 1.93150502840151, -1.8789454899229945, -1.5874927679644983, -0.0025904814349573257]
-            self.OBJECT_1 = [0.1397220939397812, -1.4318704468062897, 2.315786663685934, -2.4553057156004847, -1.5678580443011683, 1.7851606607437134]
-            self.HANDOVER = [-0.8898876349078577, -1.4629149746945878, 1.2585518995868128, -1.4616340187243004, -1.5480054060565394, 2.815899133682251]
+            self.HOME     = [-1.7102339903460901, -1.62247957805776, 1.6913612524615687, -1.6592804394164027, -1.5053008238421839, 3.146353244781494]
+            self.OBJECT_1 = [-3.692266289387838, -1.5014120799354096, 2.3944106737719935, -2.464505811730856, -1.5677226225482386, 2.5907320976257324]
+            self.HANDOVER = [-2.4394198099719446, -1.600854059258932, 1.7388213316546839, -1.9134189091124476, -1.6839326063739222, 0.601436004638672]
+
 
         # UR10e
         elif robot == 'UR10e':
@@ -180,7 +181,7 @@ class FTSensorExperiment(Node):
         # Open Gripper and Go to Home
         self.zeroFTSensor()
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
-        self.move_and_wait(self.HOME, 'HOME', 5.0, False)
+        # self.move_and_wait(self.HOME, 'HOME', 5.0, False)
         time.sleep(1)
 
         # Go to Object Goal
@@ -230,7 +231,4 @@ if __name__ == '__main__':
     # node = FTSensorExperiment('UR10e')
 
     # Run Node
-    while rclpy.ok():
-
-        node.main()
-        break
+    node.main()
