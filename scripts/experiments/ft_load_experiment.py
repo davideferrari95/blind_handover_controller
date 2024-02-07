@@ -42,8 +42,8 @@ class FTSensorExperiment(Node):
         if robot == 'UR5e':
 
             self.HOME     = [-1.7102339903460901, -1.62247957805776, 1.6913612524615687, -1.6592804394164027, -1.5053008238421839, 3.146353244781494]
-            self.OBJECT_1 = [-3.692266289387838, -1.5014120799354096, 2.3944106737719935, -2.464505811730856, -1.5677226225482386, 2.5907320976257324]
-            self.HANDOVER = [-2.4394198099719446, -1.600854059258932, 1.7388213316546839, -1.9134189091124476, -1.6839326063739222, 0.601436004638672]
+            self.OBJECT_1 = [-3.692266289387838, -1.5014120799354096, 2.3944106737719935, -2.464505811730856, -1.5677226225482386, -0.4507320976257324]
+            self.HANDOVER = [-2.48739463487734, -1.3766034108451386, 1.7061370054828089, -1.8849464855589808, -1.588557545338766, 0.5314063429832458]
 
 
         # UR10e
@@ -197,7 +197,7 @@ class FTSensorExperiment(Node):
         self.publishJointGoal(self.HANDOVER)
 
         # Starting Save Data Thread
-        print('\nSaving Data | Press ENTER to Stop')
+        print('Saving Data | Press ENTER to Stop\n')
         self.save_data_pub.publish(Bool(data=True))
 
         # Wait for Key Press to Save Data
@@ -218,7 +218,7 @@ class FTSensorExperiment(Node):
         self.handover(self.OBJECT_1)
 
         # Stop Handover
-        print('\nStopping Handover')
+        print('\nStopping Handover\n')
         self.stopHandover()
 
 if __name__ == '__main__':

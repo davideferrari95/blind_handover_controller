@@ -143,7 +143,7 @@ class SaveData(Node):
             self.rate.sleep()
 
         self.save()
-        print('Data Saved')
+        print('Data Saved\n')
 
 if __name__ == '__main__':
 
