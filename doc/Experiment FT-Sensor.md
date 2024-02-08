@@ -29,7 +29,10 @@
 | :---------------: | :----: | :----------: | :-------------------: |
 | 01 - 25           | Davide | Wrench       | 180° Gripper Rotation |
 | 26 - 50           | Davide | Wrench       | /                     |
-| 51 - 75           | Davide | Screwdrivers | Long / Heavy One      |
-| 76 - 100          | Davide | Screwdrivers | 90° Gripper Rotation  |
+| 51 - 75           | Davide | Screwdriver  | Long / Heavy One      |
+| 76 - 100          | Davide | Screwdriver  | 90° Gripper Rotation  |
 | 101 - 125         | Davide | Scissors     | 90° Gripper Rotation  |
 | 126 - 150         | Davide | Scissors     | /                     |
+| 151 - 175         | Davide | Box          | UART Box              |
+| 176 - 200         | Davide | Box          | UART Box - Other Pose |
+| 201 - 225         | Davide | Box          | UART Box - High Pose  |
