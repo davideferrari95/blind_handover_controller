@@ -27,8 +27,8 @@
 
 | Experiment Number | Who    | Object       | Other Details         |
 | :---------------: | :----: | :----------: | :-------------------: |
-| 01 - 25           | Davide | Wrench       | 180° Gripper Rotation |
-| 26 - 50           | Davide | Wrench       | /                     |
+| 01 - 25           | Davide | Pliers       | 180° Gripper Rotation |
+| 26 - 50           | Davide | Pliers       | /                     |
 | 51 - 75           | Davide | Screwdriver  | Long / Heavy One      |
 | 76 - 100          | Davide | Screwdriver  | 90° Gripper Rotation  |
 | 101 - 125         | Davide | Scissors     | 90° Gripper Rotation  |
@@ -36,3 +36,5 @@
 | 151 - 175         | Davide | Box          | UART Box              |
 | 176 - 200         | Davide | Box          | UART Box - Other Pose |
 | 201 - 225         | Davide | Box          | UART Box - High Pose  |
+| 226 - 250         | Davide | Wrench       | /                     |
+| 251 - 275         | Davide | Wrench       | 90° Gripper Rotation  |
