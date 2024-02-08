@@ -38,3 +38,4 @@
 | 201 - 225         | Davide | Box          | UART Box - High Pose  |
 | 226 - 250         | Davide | Wrench       | /                     |
 | 251 - 275         | Davide | Wrench       | 90° Gripper Rotation  |
+| 276 - 300         | Davide | Pliers       | 90° Gripper Rotation  |

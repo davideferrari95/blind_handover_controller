@@ -224,8 +224,8 @@ class FTSensorExperiment(Node):
         """ Main Loop """
 
         # Handover Tool
-        # print('\nHandover Tool\n')
-        # self.handover(self.TOOL, self.HANDOVER)
+        print('\nHandover Tool\n')
+        self.handover(self.TOOL, self.HANDOVER)
 
         # Handover Tool - 90 Degrees
         # print('\nHandover Tool - 90 Degrees\n')
@@ -240,8 +240,8 @@ class FTSensorExperiment(Node):
         # self.handover(self.OBJECT_BOX, self.HANDOVER_BOX_90)
 
         # Handover Box - High
-        print('\nHandover Box - High\n')
-        self.handover(self.OBJECT_BOX, self.HANDOVER_BOX_HIGH)
+        # print('\nHandover Box - High\n')
+        # self.handover(self.OBJECT_BOX, self.HANDOVER_BOX_HIGH)
 
         # Stop Handover
         print('\nStopping Handover\n')
