@@ -41,10 +41,18 @@ class FTSensorExperiment(Node):
         # UR5e
         if robot == 'UR5e':
 
-            self.HOME     = [-1.7102339903460901, -1.62247957805776, 1.6913612524615687, -1.6592804394164027, -1.5053008238421839, 3.146353244781494]
-            self.OBJECT_1 = [-3.692266289387838, -1.5014120799354096, 2.3944106737719935, -2.464505811730856, -1.5677226225482386, -0.4507320976257324]
+            self.HOME           = [-1.7102339903460901, -1.62247957805776, 1.6913612524615687, -1.6592804394164027, -1.5053008238421839, 3.146353244781494]
+
+            # Tools - Scissors, Screwdriver, Wrench
+            self.TOOL     = [-3.692266289387838, -1.5014120799354096, 2.3944106737719935, -2.464505811730856, -1.5677226225482386, -0.4507320976257324]
+            self.TOOL_90  = [-3.692266289387838, -1.5014120799354096, 2.3944106737719935, -2.464505811730856, -1.5677226225482386, 1.1207320976257324]
             self.HANDOVER = [-2.48739463487734, -1.3766034108451386, 1.7061370054828089, -1.8849464855589808, -1.588557545338766, 0.5314063429832458]
 
+            # Box
+            self.OBJECT_BOX        = [-3.875930372868673, -2.0105682812132777, 2.4480915705310267, -2.008982320825094, -1.5659635702716272, -0.6783559958087366]
+            self.HANDOVER_BOX      = [-2.8644443194018763, -1.1739802223495026, 2.2057250181781214, -4.058741947213644, -1.2776625792132776, -1.507796589528219]
+            self.HANDOVER_BOX_90   = [-2.8724070231067103, -1.548045839448907, 2.081207577382223, -2.475584169427389, -1.4026544729815882, -0.2660616079913538]
+            self.HANDOVER_BOX_HIGH = [-2.9507153765307825, -1.5687894262703885, 2.2557128111468714, -3.574264474908346, -1.3334147612201136, -1.6120832602130335]
 
         # UR10e
         elif robot == 'UR10e':
@@ -174,12 +182,11 @@ class FTSensorExperiment(Node):
         Thread(target=None, args=(), name='loop_fun', daemon=True).start()
         listener.join()
 
-    def handover(self, object_goal:List[float]):
+    def handover(self, object_goal:List[float], handover_goal:List[float]):
 
         """ Handover """
 
         # Open Gripper and Go to Home
-        self.zeroFTSensor()
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
         # self.move_and_wait(self.HOME, 'HOME', 5.0, False)
         time.sleep(1)
@@ -188,13 +195,16 @@ class FTSensorExperiment(Node):
         self.move_and_wait(object_goal, 'Object Goal', 5.0, False)
         time.sleep(1)
 
-        # Pick Object
+        # Reset FT-Sensor
         self.zeroFTSensor()
+        time.sleep(1)
+
+        # Close Gripper
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_CLOSED)
         time.sleep(1)
 
         # Go to Handover Goal
-        self.publishJointGoal(self.HANDOVER)
+        self.publishJointGoal(handover_goal)
 
         # Starting Save Data Thread
         print('Saving Data | Press ENTER to Stop\n')
@@ -213,9 +223,25 @@ class FTSensorExperiment(Node):
 
         """ Main Loop """
 
-        # Handover Object 1
-        print('\nHandover Object 1')
-        self.handover(self.OBJECT_1)
+        # Handover Tool
+        # print('\nHandover Tool\n')
+        # self.handover(self.TOOL, self.HANDOVER)
+
+        # Handover Tool - 90 Degrees
+        # print('\nHandover Tool - 90 Degrees\n')
+        # self.handover(self.TOOL_90, self.HANDOVER)
+
+        # Handover Box
+        # print('\nHandover Box\n')
+        # self.handover(self.OBJECT_BOX, self.HANDOVER_BOX)
+
+        # Handover Box - 90 Degrees
+        # print('\nHandover Box - 90 Degrees\n')
+        # self.handover(self.OBJECT_BOX, self.HANDOVER_BOX_90)
+
+        # Handover Box - High
+        print('\nHandover Box - High\n')
+        self.handover(self.OBJECT_BOX, self.HANDOVER_BOX_HIGH)
 
         # Stop Handover
         print('\nStopping Handover\n')
