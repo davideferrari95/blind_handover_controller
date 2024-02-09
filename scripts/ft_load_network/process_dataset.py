@@ -45,13 +45,19 @@ class ProcessDataset():
         dataframe_list = self.complete_dataset(dataframe_list)
 
         # Merge DataFrames
-        df = pd.concat(dataframe_list, ignore_index=True)
+        self.dataframe = pd.concat(dataframe_list, ignore_index=True)
 
         # Dataset Creation
-        self.dataset = CustomDataset(df, sequence_length)
+        self.dataset = CustomDataset(self.dataframe, sequence_length)
 
         # DataLoader Creation
         self.dataloader = DataLoader(self.dataset, batch_size=batch_size, shuffle=shuffle)
+
+    def get_dataframe(self) -> pd.DataFrame:
+
+        """ Get DataFrame """
+
+        return self.dataframe
 
     def get_dataset(self) -> CustomDataset:
 

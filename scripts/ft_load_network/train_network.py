@@ -1,102 +1,118 @@
-import pandas as pd
+import torch, os
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning import Trainer, loggers as pl_loggers
 
-import torch, pytorch_lightning as pl
-from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pack_sequence
+# Import Processed Dataset and DataLoader
+from process_dataset import ProcessDataset, PACKAGE_PATH
 
-class CustomDataset(Dataset):
+# Import PyTorch Lightning Callbacks
+from pl_utils import save_model, StartTestingCallback, StartTrainingCallback, DEVICE
 
-    def __init__(self, packed_sequences, labels):
+# Set Torch Matmul Precision
+torch.set_float32_matmul_precision('high')
 
-        # Dataset Initialization
-        self.packed_sequences = packed_sequences
-        self.labels = labels
-    
-    def __len__(self):
+class LSTMModel(pl.LightningModule):
 
-        return len(self.labels)
-    
-    def __getitem__(self, idx):
+    """ LSTM Model Network """
 
-        return self.packed_sequences[idx], self.labels[idx]
+    def __init__(self, input_size:int, hidden_size:int, output_size:int, num_layers:int, learning_rate:float=0.001):
+        super(LSTMModel, self).__init__()
 
-# Leggi il tuo file CSV
-df = pd.read_csv('tuo_file.csv')
+        # Save Hyperparameters
+        self.input_size, self.output_size = input_size, output_size
+        self.hidden_size, self.num_layers = hidden_size, num_layers
+        self.learning_rate = learning_rate
 
-# Aggiungi una colonna con l'ID dell'esperimento
-df['experiment_id'] = df.groupby('experiment')['experiment'].ngroup()
+        # Create Neural Network Layers
+        self.lstm = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, batch_first=True)
+        self.fc = torch.nn.Linear(hidden_size, output_size)
+        self.sigmoid = torch.nn.Sigmoid()
 
-# Crea il tuo dataset
-sequences = []
-labels = []
+    def forward(self, x):
 
-for group_id, group_df in df.groupby('experiment_id'):
-    sequence = torch.tensor(group_df[['v[1]', 'v[2]', 'v[3]', 'v[4]', 'v[5]', 'v[6]', 'fx']].values, dtype=torch.float32)
-    label = torch.tensor(group_df['gripper_parameter'].values, dtype=torch.long)  # Supponendo che il parametro booleano sia in 'gripper_parameter'
-    
-    sequences.append(sequence)
-    labels.append(label)
+        """ Forward Pass """
 
-# Utilizza pack_sequence per gestire le sequenze con lunghezze diverse
-packed_sequences = pack_sequence(sequences)
-labels = torch.cat(labels)
+        # Pass through LSTM Layer
+        lstm_out, _ = self.lstm(x)
 
-# Usa CustomDataset nel resto del tuo codice per creare il dataloader e addestrare il modello
+        # Only take the output at the last time step
+        output = self.fc(lstm_out[:, -1, :])
+        return self.sigmoid(output)
 
+    def training_step(self, batch, batch_idx):
 
-# # Definisci la tua rete LSTM
-# class GripperLSTM(nn.Module):
-#     def __init__(self, input_size, hidden_size, output_size):
-#         super(GripperLSTM, self).__init__()
-#         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-#         self.fc = nn.Linear(hidden_size, output_size)
-    
-#     def forward(self, x):
-#         out, _ = self.lstm(x)
-#         out = self.fc(out[:, -1, :])  # Utilizza solo l'output dell'ultima sequenza
-#         return out
+        """ Training Step """
 
-# # Definisci il tuo dataset personalizzato
-# class CustomDataset(Dataset):
-#     def __init__(self, data, labels):
-#         self.data = data
-#         self.labels = labels
-    
-#     def __len__(self):
-#         return len(self.data)
-    
-#     def __getitem__(self, idx):
-#         return torch.tensor(self.data[idx]), torch.tensor(self.labels[idx])
+        x, y = batch
+        y_pred = self(x)
 
-# # Definisci il tuo modulo di Lightning
-# class GripperLSTMModule(pl.LightningModule):
-#     def __init__(self, input_size, hidden_size, output_size, learning_rate):
-#         super(GripperLSTMModule, self).__init__()
-#         self.model = GripperLSTM(input_size, hidden_size, output_size)
-#         self.criterion = nn.CrossEntropyLoss()
-#         self.learning_rate = learning_rate
+        # Calculate Loss
+        loss = torch.nn.BCELoss()(y_pred.squeeze(), y)
+        
+        return loss
 
-#     def forward(self, x):
-#         return self.model(x)
+    def configure_optimizers(self):
 
-#     def training_step(self, batch, batch_idx):
-#         inputs, labels = batch
-#         outputs = self(inputs)
-#         loss = self.criterion(outputs, labels)
-#         return loss
+        """ Configure Optimizer """
+        
+        # Use Adam Optimizer
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
-#     def configure_optimizers(self):
-#         return optim.Adam(self.model.parameters(), lr=self.learning_rate)
+class TrainingNetwork():
 
-# # Configura e addestra il modello
-# input_size = 6  # Dimensione dell'input (ad esempio, 6 per le letture di forza)
-# hidden_size = 64  # Dimensione dello strato nascosto LSTM
-# output_size = 2  # Dimensione dell'output (apri o chiudi gripper)
-# learning_rate = 0.001
+    """ Train LSTM Network """
 
-# model = GripperLSTMModule(input_size, hidden_size, output_size, learning_rate)
-# dataset = CustomDataset(data, labels)  # Sostituisci con i tuoi dati e etichette
-# dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    def __init__(self, batch_size:int=32, sequence_length:int=100, shuffle:bool=True):
 
-# trainer = pl.Trainer(max_epochs=10)
-# trainer.fit(model, dataloader)
+        # Process Dataset
+        process_dataset = ProcessDataset(batch_size, sequence_length, shuffle)
+
+        # Get Dataset and  DataLoader
+        dataframe, self.dataloader = process_dataset.get_dataframe(), process_dataset.get_dataloader()
+
+        # Model Hyperparameters (Input Size, Hidden Size, Output Size, Number of Layers)
+        input_size, hidden_size, output_size, num_layers = dataframe.shape[1] - 2, 64, 1, 1
+        learning_rate = 0.001
+
+        # Create LSTM Model
+        self.lstm_model = LSTMModel(input_size, hidden_size, output_size, num_layers, learning_rate).to(DEVICE)
+
+    def train_network(self):
+
+        """ Train LSTM Network """
+
+        # PyTorch Lightning Trainer
+        trainer = Trainer(
+
+            # Devices
+            devices= 'auto',
+
+            # Hyperparameters
+            # min_epochs = 200,
+            max_epochs = 2000,
+            log_every_n_steps = 1,
+
+            # Instantiate Early Stopping Callback
+            callbacks = [StartTrainingCallback(), StartTestingCallback(),
+                        EarlyStopping(monitor='train_loss', mode='min', min_delta=0, patience=100, verbose=True)],
+
+            # Custom TensorBoard Logger
+            logger = pl_loggers.TensorBoardLogger(save_dir=f'{PACKAGE_PATH}/model/data/logs/'),
+
+            # Developer Test Mode
+            fast_dev_run = True
+
+        )
+
+        # Train Model
+        trainer.fit(self.lstm_model, train_dataloaders=self.dataloader)
+
+        # Save Model
+        save_model(os.path.join(f'{PACKAGE_PATH}/model'), 'model.pth', self.lstm_model)
+
+if __name__ == '__main__':
+
+    # Train LSTM Network
+    training_network = TrainingNetwork(batch_size=64, sequence_length=100, shuffle=True)
+    training_network.train_network()
