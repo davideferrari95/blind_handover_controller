@@ -44,3 +44,12 @@ class StartTestingCallback(Callback):
 
     # On End Testing
     def on_test_end(self, trainer, pl_module): print(colored('\n\n\nTesting Done\n\n','yellow'))
+
+# Print Start Testing Info Callback
+class StartValidationCallback(Callback):
+
+    # On Start Testing
+    def on_validation_start(self, trainer, pl_module): print(colored('\n\nStart Validation Process\n\n','yellow'))
+
+    # On End Testing
+    def on_validation_end(self, trainer, pl_module): print(colored('\n\n\nValidation Done\n\n','yellow'))

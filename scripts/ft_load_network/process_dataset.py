@@ -2,7 +2,7 @@ import os, pandas as pd
 from typing import List
 
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 
 # Get Data Path
 from pathlib import Path
@@ -48,10 +48,10 @@ class ProcessDataset():
         self.dataframe = pd.concat(dataframe_list, ignore_index=True)
 
         # Dataset Creation
-        self.dataset = CustomDataset(self.dataframe, sequence_length)
+        dataset = CustomDataset(self.dataframe, sequence_length)
 
         # DataLoader Creation
-        self.dataloader = DataLoader(self.dataset, batch_size=batch_size, shuffle=shuffle)
+        self.split_dataloader(dataset, batch_size, train_size=0.8, test_size=0.15, validation_size=0.05, shuffle=shuffle)
 
     def get_dataframe(self) -> pd.DataFrame:
 
@@ -59,17 +59,17 @@ class ProcessDataset():
 
         return self.dataframe
 
-    def get_dataset(self) -> CustomDataset:
+    def get_datasets(self) -> CustomDataset:
 
-        """ Get Dataset """
+        """ Get Train, Test and Validation Datasets """
 
-        return self.dataset
+        return self.train_dataset, self.test_dataset, self.val_dataset
 
-    def get_dataloader(self) -> DataLoader:
+    def get_dataloaders(self) -> DataLoader:
 
-        """ Get DataLoader """
+        """ Get Train, Test and Validation DataLoaders """
 
-        return self.dataloader
+        return self.train_dataloader, self.test_dataloader, self.val_dataloader
 
     def read_csv_files(self) -> List[pd.DataFrame]:
 
@@ -108,6 +108,20 @@ class ProcessDataset():
             df.iloc[-100:, df.columns.get_loc('open_gripper')] = 1
 
         return dataframe_list
+
+    def split_dataloader(self, dataset:Dataset, batch_size:int=64, train_size:float=0.8, test_size:float=0.15, validation_size:float=0.05, shuffle:bool=True):
+
+        """ Split DataLoader into Train, Test and Validation """
+
+        # Split Dataset
+        assert train_size + test_size + validation_size == 1, 'Train, Test and Validation Sizes do not add up to 1'
+        self.train_dataset, self.test_dataset, self.val_dataset = random_split(dataset, [train_size, test_size, validation_size])
+        assert len(self.train_dataset) + len(self.test_dataset) + len(self.val_dataset) == len(dataset), 'Train, Test and Validation Sizes do not add up to Dataset Length'
+
+        # Create DataLoaders
+        self.train_dataloader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=os.cpu_count())
+        self.test_dataloader  = DataLoader(self.test_dataset,  batch_size=batch_size, shuffle=False,   num_workers=os.cpu_count())
+        self.val_dataloader   = DataLoader(self.val_dataset,   batch_size=batch_size, shuffle=False,   num_workers=os.cpu_count())
 
 if __name__ == '__main__':
 
