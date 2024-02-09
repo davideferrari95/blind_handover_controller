@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 # Get Data Path
 from pathlib import Path
 PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
-DATA_PATH = f'{PACKAGE_PATH}/data/test'
+DATA_PATH = f'{PACKAGE_PATH}/data'
 
 class CustomDataset(Dataset):
 
@@ -52,14 +52,6 @@ class ProcessDataset():
 
         # DataLoader Creation
         self.dataloader = DataLoader(self.dataset, batch_size=batch_size, shuffle=shuffle)
-
-        # Sample Data
-        # print(dataframe_list[0])
-        # print(df)
-        # sample_sequence, sample_label = self.dataset[0]
-        # print("Length of dataset:", len(self.dataset))
-        # print("Sample Sequence:", sample_sequence)
-        # print("Sample Label:", sample_label)
 
     def get_dataset(self) -> CustomDataset:
 
