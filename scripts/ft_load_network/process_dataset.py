@@ -1,9 +1,8 @@
 import os, pandas as pd
 from typing import List
 
-import torch, pytorch_lightning as pl
+import torch
 from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pack_sequence
 
 # Get Data Path
 from pathlib import Path
@@ -12,25 +11,32 @@ DATA_PATH = f'{PACKAGE_PATH}/data/test'
 
 class CustomDataset(Dataset):
 
-    def __init__(self, packed_sequences, labels):
+    """ Custom Dataset """
 
-        # Dataset Initialization
-        self.packed_sequences = packed_sequences
-        self.labels = labels
+    def __init__(self, dataframe:pd.DataFrame, sequence_length:int):
+
+        self.data = dataframe.values
+        self.sequence_length = sequence_length
 
     def __len__(self):
 
-        return len(self.labels)
+        return len(self.data) - self.sequence_length + 1
 
     def __getitem__(self, idx):
 
-        return self.packed_sequences[idx], self.labels[idx]
+        # Calculate Start and End Index
+        end_idx = idx + self.sequence_length
 
+        # Get Sequence Data (Exclude 'experiment_id' and 'open_gripper') and Label ('open_gripper' as label)
+        seq_data = torch.tensor(self.data[idx:end_idx, :-2], dtype=torch.float32)
+        label = torch.tensor(self.data[end_idx - 1, -1], dtype=torch.float32)
+
+        return seq_data, label
 class ProcessDataset():
 
     """ Process Dataset for LSTM Network """
 
-    def __init__(self):
+    def __init__(self, batch_size:int=32, sequence_length:int=100, shuffle:bool=True):
 
         # Read CSV Files
         dataframe_list = self.read_csv_files()
@@ -38,17 +44,34 @@ class ProcessDataset():
         # Add Experiment ID and Boolean Parameter (Open Gripper)
         dataframe_list = self.complete_dataset(dataframe_list)
 
-        print(dataframe_list[0])
-        print(dataframe_list[1])
-
         # Merge DataFrames
         df = pd.concat(dataframe_list, ignore_index=True)
-        # print(df)
 
-        # Pack Sequences
-        sequences, labels = self.parse_sequences(df)
-        
-        print(sequences, labels)
+        # Dataset Creation
+        self.dataset = CustomDataset(df, sequence_length)
+
+        # DataLoader Creation
+        self.dataloader = DataLoader(self.dataset, batch_size=batch_size, shuffle=shuffle)
+
+        # Sample Data
+        # print(dataframe_list[0])
+        # print(df)
+        # sample_sequence, sample_label = self.dataset[0]
+        # print("Length of dataset:", len(self.dataset))
+        # print("Sample Sequence:", sample_sequence)
+        # print("Sample Label:", sample_label)
+
+    def get_dataset(self) -> CustomDataset:
+
+        """ Get Dataset """
+
+        return self.dataset
+
+    def get_dataloader(self) -> DataLoader:
+
+        """ Get DataLoader """
+
+        return self.dataloader
 
     def read_csv_files(self) -> List[pd.DataFrame]:
 
@@ -84,39 +107,10 @@ class ProcessDataset():
 
             # Add Boolean Parameter (Open Gripper - 1 if last 100 samples, 0 otherwise)
             df['open_gripper'] = 0
-            df.iloc[-5:, df.columns.get_loc('open_gripper')] = 1
-            # df.iloc[-100:, df.columns.get_loc('open_gripper')] = 1
+            df.iloc[-100:, df.columns.get_loc('open_gripper')] = 1
 
         return dataframe_list
 
-    def parse_sequences(self, df: pd.DataFrame):
-
-        """ Parse Sequences """
-
-        # Create Dataset
-        sequences, labels = [], []
-
-        for group_id, group_df in df.groupby('experiment_id'):
-
-            # Sequence (Velocity and Force/Torque Sensor Data)
-            sequence = torch.tensor(group_df[df.columns.values[:-2]].values, dtype=torch.float32)
-            # print(sequence)
-
-            # Label
-            label = torch.tensor(group_df['open_gripper'].values, dtype=torch.long)
-
-            # Append to Lists
-            sequences.append(sequence)
-            labels.append(label)
-
-        # Pack Sequences
-        packed_sequences = pack_sequence(sequences, enforce_sorted=False)
-
-        # Concatenate Labels
-        labels = torch.cat(labels)
-
-        return packed_sequences, labels
-
 if __name__ == '__main__':
 
-    ProcessDataset()
+    ProcessDataset(32, 100, True)
