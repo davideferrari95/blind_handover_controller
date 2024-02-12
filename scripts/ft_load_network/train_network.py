@@ -1,23 +1,28 @@
-import torch, os
+import os
+from typing import List
+
+import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning import Trainer, loggers as pl_loggers
 from torchmetrics.classification import Accuracy
+
 # Import Processed Dataset and DataLoader
 from process_dataset import ProcessDataset, PACKAGE_PATH
 
 # Import Callbacks and Utilities
-from pl_utils import save_model, DEVICE
+from pl_utils import save_model, save_hyperparameters, DEVICE
 from pl_utils import StartTestingCallback, StartTrainingCallback, StartValidationCallback
 
 # Set Torch Matmul Precision
 torch.set_float32_matmul_precision('high')
+SEQUENCE_LENGTH = 500
 
 class LSTMModel(pl.LightningModule):
 
     """ LSTM Model Network """
 
-    def __init__(self, input_size:int, hidden_size:int, output_size:int, num_layers:int, learning_rate:float=0.001):
+    def __init__(self, input_size:int, hidden_size:List[int], output_size:int, num_layers:int, learning_rate:float=0.001):
         super(LSTMModel, self).__init__()
 
         # Save Hyperparameters
@@ -26,8 +31,15 @@ class LSTMModel(pl.LightningModule):
         self.learning_rate = learning_rate
 
         # Create Neural Network Layers
-        self.lstm = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, batch_first=True)
-        self.fc = torch.nn.Linear(hidden_size, output_size)
+        self.lstm = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size[0], num_layers=num_layers, batch_first=True)
+
+        # Hidden Fully Connected Layer
+        # self.fc1 = torch.nn.Linear(hidden_size[0], hidden_size[1])
+
+        # Last Fully Connected Layer
+        self.fc = torch.nn.Linear(hidden_size[-1], output_size)
+
+        # Sigmoid Activation
         self.sigmoid = torch.nn.Sigmoid()
 
         # Initialize Accuracy Metrics
@@ -46,6 +58,9 @@ class LSTMModel(pl.LightningModule):
 
         # Only Last Time Step Output
         output = self.fc(lstm_out[:, -1, :])
+        # output = self.fc2(output)
+
+        # Sigmoid Activation
         return self.sigmoid(output)
 
     def training_step(self, batch, batch_idx):
@@ -140,8 +155,12 @@ class TrainingNetwork():
         self.train_dataloader, self.test_dataloader, self.val_dataloader = process_dataset.get_dataloaders()
 
         # Model Hyperparameters (Input Size, Hidden Size, Output Size, Number of Layers)
-        input_size, hidden_size, output_size, num_layers = dataframe.shape[1] - 2, 64, 1, 1
+        # input_size, hidden_size, output_size, num_layers = dataframe.shape[1] - 2, [512, 128], 1, 1
+        input_size, hidden_size, output_size, num_layers = dataframe.shape[1] - 2, [64], 1, 1
         learning_rate = 0.001
+
+        # Save Hyperparameters in Config File
+        save_hyperparameters(f'{PACKAGE_PATH}/model', input_size, hidden_size, output_size, num_layers, learning_rate)
 
         # Create LSTM Model
         self.lstm_model = LSTMModel(input_size, hidden_size, output_size, num_layers, learning_rate).to(DEVICE)
@@ -175,8 +194,7 @@ class TrainingNetwork():
         )
 
         # Train Model
-        # trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader, val_dataloaders=self.val_dataloader)
-        trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader)
+        trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader, val_dataloaders=self.val_dataloader)
 
         # Test Model
         trainer.test(self.lstm_model, dataloaders=self.test_dataloader)
@@ -190,5 +208,5 @@ class TrainingNetwork():
 if __name__ == '__main__':
 
     # Train LSTM Network
-    training_network = TrainingNetwork(batch_size=64, sequence_length=100, shuffle=True)
+    training_network = TrainingNetwork(batch_size=1024, sequence_length=SEQUENCE_LENGTH, shuffle=True)
     training_network.train_network()

@@ -2,6 +2,7 @@
 
 import rclpy, time, os, datetime, threading
 from rclpy.node import Node
+from typing import List
 
 # Get Data Path
 from pathlib import Path
@@ -25,12 +26,13 @@ class SaveData(Node):
     joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Data Lists
-    joint_states_data_list, ft_sensor_data_list = [], []
+    joint_states_data_list:List[JointState] = []
+    ft_sensor_data_list:List[Wrench] = []
 
     def __init__(self, ros_rate:int=500):
 
         # Node Initialization
-        super().__init__('Save_Data_Node')
+        super().__init__('save_data_node')
 
         # ROS2 Rate
         self.ros_rate = ros_rate
