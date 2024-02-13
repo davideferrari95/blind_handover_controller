@@ -33,8 +33,8 @@ install(PROGRAMS
   scripts/handover_controller.py
   scripts/experiments/goal_publisher.py
   scripts/experiments/ft_load_experiment.py
-  scripts/experiments/ft_network.py
   scripts/experiments/save_data.py
+  scripts/ft_load_network/ft_network.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
