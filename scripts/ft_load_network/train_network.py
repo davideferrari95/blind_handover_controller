@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Tuple
 
 import torch
 import pytorch_lightning as pl
@@ -63,15 +63,15 @@ class LSTMModel(pl.LightningModule):
         # Sigmoid Activation
         return self.sigmoid(output)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch:Tuple[torch.Tensor, torch.Tensor], batch_idx):
 
         """ Training Step """
 
         x, y = batch
-        y_pred = self(x)
+        y_pred:torch.Tensor = self(x)
 
         # Calculate Loss
-        loss = torch.nn.BCELoss()(y_pred.squeeze(), y)
+        loss:torch.Tensor = torch.nn.BCELoss()(y_pred.squeeze(), y)
         self.log('train_loss', loss)
 
         # Update Accuracy Metric
@@ -80,15 +80,15 @@ class LSTMModel(pl.LightningModule):
 
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch:Tuple[torch.Tensor, torch.Tensor], batch_idx):
 
         """ Validation Step """
 
         x, y = batch
-        y_pred = self(x)
+        y_pred:torch.Tensor = self(x)
 
         # Calculate Loss for Validation
-        val_loss = torch.nn.BCELoss()(y_pred.squeeze(), y)
+        val_loss:torch.Tensor = torch.nn.BCELoss()(y_pred.squeeze(), y)
 
         # Update Accuracy Metric
         self.val_accuracy(y_pred.squeeze(), y.long())
@@ -107,15 +107,15 @@ class LSTMModel(pl.LightningModule):
         self.log('val_loss', avg_val_loss)
         self.log('val_accuracy', self.val_accuracy.compute(), prog_bar=True)
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch:Tuple[torch.Tensor, torch.Tensor], batch_idx):
 
         """ Test Step """
 
         x, y = batch
-        y_pred = self(x)
+        y_pred:torch.Tensor = self(x)
 
         # Calculate Loss for Test
-        test_loss = torch.nn.BCELoss()(y_pred.squeeze(), y)
+        test_loss:torch.Tensor = torch.nn.BCELoss()(y_pred.squeeze(), y)
 
         # Update Accuracy Metric
         self.test_accuracy(y_pred.squeeze(), y.long())

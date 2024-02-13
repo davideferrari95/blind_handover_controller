@@ -101,6 +101,9 @@ class GripperControlNode(Node):
         # Get the Entire Buffer
         data = self.get_data()
 
+        # Return if the Buffer is not Full
+        if len(data) < SEQUENCE_LENGTH: return
+
         # Pass the Data to the Model
         output = self.model.forward(data)
         print(f'Output: {output}')
