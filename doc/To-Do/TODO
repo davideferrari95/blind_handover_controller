@@ -16,9 +16,9 @@ Handover Controller:
 
 Load Transfer - FT Sensor:
 
-    - Study the `Force-Load Transfer` between the Robot and the Human.
-    - Can we use the Force-Load Transfer to detect the Handover Success ?
-    - Find a Robust strategy to detect the Handover Success.
+    ✔ Study the `Force-Load Transfer` between the Robot and the Human. @done(24-02-12 16:30)
+    ✔ Can we use the Force-Load Transfer to detect the Handover Success ? -> YES @done(24-02-12 16:30)
+    - Find a Robust strategy to detect the Handover Success. -> Neural Network @doing(24-02-12 16:30)
 
     - Little User-Study to find the Force-Load Transfer:
 
@@ -29,6 +29,9 @@ Load Transfer - FT Sensor:
 
     - `Neural Network` to detect the Handover Success:
 
+        ✔ Write a `Force-Load Transfer` Model with PyTorch. @done(24-02-12 16:31)
+        ✔ Write a Training Network script. @done(24-02-12 16:31)
+        ✔ Write a Usage Network ROS2 Node. @done(24-02-12 16:32)
         - Use the `Force-Load Transfer` Model to detect the Handover Release.
 
 Sensing and Communication:
@@ -45,14 +48,14 @@ Force-Load Transfer User Study - Experiment Details:
 
     Task Description:
 
-        - Robot must pass an object to the human (Different Objects / Weights / Sizes / Positions).
-        - Human must take the object from the robot (Sometimes head-on, other times from behind).
-        - Human must communicate when he has the object -> Robot must release the object (Button Pressure).
+        ✔ Robot must pass an object to the human (Different Objects / Weights / Sizes / Positions). @done(24-02-12 16:33)
+        ✔ Human must take the object from the robot (Sometimes head-on, other times from behind). @done(24-02-12 16:33)
+        ✔ Human must communicate when he has the object -> Robot must release the object (Button Pressure). @done(24-02-12 16:33)
 
-        - Different Objects with Different Weights and Sizes.
-        - Dataset Creation without Implementing Safety (Always PFL) or Communication.
-        - Pick the Object from an Hardcoded Position and go to an Handover Hardcoded Position.
-        - Start Data Collection when Robot Pick the Object until Release.
+        ✔ Different Objects with Different Weights and Sizes. @done(24-02-12 16:33)
+        ✔ Dataset Creation without Implementing Safety (Always PFL) or Communication. @done(24-02-12 16:33)
+        ✔ Pick the Object from an Hardcoded Position and go to an Handover Hardcoded Position. @done(24-02-12 16:33)
+        ✔ Start Data Collection when Robot Pick the Object until Release. @done(24-02-12 16:33)
 
     ✘ Vice-versa Experiment ?: @cancelled(24-01-30 15:19)
 
@@ -62,22 +65,21 @@ Force-Load Transfer User Study - Experiment Details:
 
     Data Collection:
 
-        - Force-Load Transfer Curve -> FT Sensor Readings.
-        - Release Time -> Synchronized with the FT Sensor Readings.
-        - Velocity of the Robot ? (Handover occurs when the velocity is ~ zero).
-        - Position of the Robot ? (Handover occurs when the position is ~ handover goal).
+        ✔ Force-Load Transfer Curve -> FT Sensor Readings. @done(24-02-12 16:33)
+        ✔ Release Time -> Synchronized with the FT Sensor Readings. @done(24-02-12 16:33)
+        ✔ Velocity of the Robot ? (Handover occurs when the velocity is ~ zero). @done(24-02-12 16:33)
+        ✔ Position of the Robot ? (Handover occurs when the position is ~ handover goal). @done(24-02-12 16:33)
 
     NN Training:
 
-        - Create a `Force-Load Transfer` Model with PyTorch.
-        - Test the Model with different Objects / Weights / Sizes / Positions.
-        - Output: Do Nothing / Release Object.
+        ✔ Create a `Force-Load Transfer` Model with PyTorch. @done(24-02-12 16:32)
+        ✔ Test the Model with different Objects / Weights / Sizes / Positions. @done(24-02-12 16:32)
+        ✔ Output: Do Nothing / Release Object. @done(24-02-12 16:32)
 
-        - Loss Function: Binary Cross Entropy.
-        - Optimizer: Adam.
-        - Epochs: 1000.
-        - Batch Size: 32.
-
+        ✔ Loss Function: Binary Cross Entropy. @done(24-02-12 16:32)
+        ✘ Optimizer: Adam. @cancelled(24-02-12 16:32)
+        ✘ Epochs: 1000. @cancelled(24-02-12 16:32)
+        ✘ Batch Size: 32. @cancelled(24-02-12 16:32)
 
 `------------------------------------------------------------------------------------------------------------------------------------------------------`
 
@@ -86,7 +88,7 @@ Future Implementations:
 
     Handover "On Flight":
 
-        - Handover occurs while robot is moving
+        ✔ Handover occurs while robot is moving @done(24-02-12 16:33)
 
     Personal Safety:
 
