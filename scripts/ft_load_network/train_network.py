@@ -16,7 +16,7 @@ from pl_utils import StartTestingCallback, StartTrainingCallback, StartValidatio
 
 # Set Torch Matmul Precision
 torch.set_float32_matmul_precision('high')
-SEQUENCE_LENGTH = 500
+SEQUENCE_LENGTH, STRIDE = 100, 10
 
 class LSTMModel(pl.LightningModule):
 
@@ -49,7 +49,7 @@ class LSTMModel(pl.LightningModule):
         self.valid_loss, self.num_val_batches  = 0, 0
         self.test_loss,  self.num_test_batches = 0, 0
 
-    def forward(self, x):
+    def forward(self, x:torch.Tensor):
 
         """ Forward Pass """
 
@@ -145,10 +145,10 @@ class TrainingNetwork():
 
     """ Train LSTM Network """
 
-    def __init__(self, batch_size:int=32, sequence_length:int=100, shuffle:bool=True):
+    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, shuffle:bool=True):
 
         # Process Dataset
-        process_dataset = ProcessDataset(batch_size, sequence_length, shuffle)
+        process_dataset = ProcessDataset(batch_size, sequence_length, stride, shuffle)
 
         # Get Dataset and  DataLoader
         dataframe = process_dataset.get_dataframe()
@@ -194,13 +194,14 @@ class TrainingNetwork():
         )
 
         # Train Model
-        trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader, val_dataloaders=self.val_dataloader)
+        # trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader, val_dataloaders=self.val_dataloader)
+        trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader)
 
         # Test Model
         trainer.test(self.lstm_model, dataloaders=self.test_dataloader)
 
         # Validate Model
-        trainer.validate(self.lstm_model, dataloaders=self.val_dataloader)
+        # trainer.validate(self.lstm_model, dataloaders=self.val_dataloader)
 
         # Save Model
         save_model(os.path.join(f'{PACKAGE_PATH}/model'), 'model.pth', self.lstm_model)
@@ -208,5 +209,6 @@ class TrainingNetwork():
 if __name__ == '__main__':
 
     # Train LSTM Network
-    training_network = TrainingNetwork(batch_size=1024, sequence_length=SEQUENCE_LENGTH, shuffle=True)
+    # training_network = TrainingNetwork(batch_size=1024, sequence_length=SEQUENCE_LENGTH, shuffle=True)
+    training_network = TrainingNetwork(batch_size=1024, sequence_length=SEQUENCE_LENGTH, stride=STRIDE, shuffle=False)
     training_network.train_network()

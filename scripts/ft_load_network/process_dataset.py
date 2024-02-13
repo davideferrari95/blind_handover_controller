@@ -9,55 +9,119 @@ from pathlib import Path
 PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 DATA_PATH = f'{PACKAGE_PATH}/data'
 
+"""
+proviamo diversamente:
+
+creo il dataset e lo processo così:
+
+    1. per ogni cartella in data -> faccio un dataframe con i dati di joint_states_data.csv e ft_sensor_data.csv
+    2. aggiungo una colonna experiment_id che è l'indice della cartella, e una colonna open_gripper che è 1 se siamo negli ultimi 100 samples, 0 altrimenti
+    3. aggiungo il dataframe alla lista dataframe_list
+
+poi creo il dataset e i dataloader così:
+
+    1. creo un dataset con la lista di dataframe
+    2. ogni dataframe nella lista verrà salvato come un item del dataset
+    3. quando chiedo il getitem del dataset, mi ritorna uno slice di 100 samples del dataframe idx, e l'etichetta è l'open_gripper dell'ultimo sample
+
+alternativa:
+
+    1. per ogni dataframe creo un numero M di sequenze di N samples, con stride S:
+
+        Ad esempio, se hai un DataFrame di lunghezza 1000 e vuoi creare sequenze di 50 campioni con uno stride di 10, il processo potrebbe apparire così:
+
+        Sequenza 1: campioni 1-50
+        Sequenza 2: campioni 11-60
+        Sequenza 3: campioni 21-70
+        E così via...
+
+    2. ogni sequenza diventa un item del dataset, e l'etichetta è l'open_gripper dell'ultimo sample
+    3. quando chiedo il getitem del dataset, mi ritorna una di queste sequenze con il label correlato
+
+creo il modello e lo addestro così:
+
+    1. creo un modello con LSTM, FC Layer, Sigmoid + BCELoss e AdamW come ottimizzatore
+    input_size = dataframe.shape[1] - 2, hidden_size = [64], output_size = 1, num_layers = sequence_length, learning_rate = 0.001
+    2. addestro il modello con il train_dataloader e il val_dataloader
+    3. testo il modello con il test_dataloader
+
+"""
+
 class CustomDataset(Dataset):
 
-    """ Custom Dataset """
+    """ Create Custom Dataset for LSTM Network """
 
-    def __init__(self, dataframe:pd.DataFrame, sequence_length:int):
+    """
+        Input: List of DataFrames, Sequence Length, Stride
+        Output: Sequences and Labels for LSTM Network
 
-        self.data = dataframe.values
-        self.sequence_length = sequence_length
+        Eg. DataFrame length = 1000, sequence_length = 50, stride = 10
+
+            Sequence 1: samples 1-50
+            Sequence 2: samples 11-60
+            Sequence 3: samples 21-70
+            And so on...
+
+        Repeat for all DataFrames in the List
+    """
+
+    def __init__(self, dataframe_list:List[pd.DataFrame], sequence_length:int=100, stride:int=10):
+
+        assert len(dataframe_list) > 0, 'Empty DataFrame List'
+        assert sequence_length > 0, 'Invalid Sequence Length'
+        assert stride > 0, 'Invalid Stride'
+
+        # Initialize Sequences and Labels
+        self.sequences, self.labels = [], []
+
+        # Iterating over the List of DataFrames
+        for df in dataframe_list:
+
+            # Iterating over the DataFrame to Create Sequences and Labels
+            for i in range(0, len(df) - sequence_length + 1, stride):
+
+                # Get Sequence and Label (last sample's 'open_gripper' value)
+                sequence = df.iloc[i:i+sequence_length, :-1].values
+                label = df.iloc[i+sequence_length-1, -1]
+
+                # Append Sequence and Label to Lists
+                self.sequences.append(sequence)
+                self.labels.append(label)
 
     def __len__(self):
 
-        return len(self.data) - self.sequence_length + 1
+        return len(self.sequences)
 
     def __getitem__(self, idx):
 
-        # Calculate Start and End Index
-        end_idx = idx + self.sequence_length
+        # Get Sequence and Label
+        sequence = self.sequences[idx]
+        label = self.labels[idx]
 
-        # Get Sequence Data (Exclude 'experiment_id' and 'open_gripper') and Label ('open_gripper' as label)
-        seq_data = torch.tensor(self.data[idx:end_idx, :-2], dtype=torch.float32)
-        label = torch.tensor(self.data[end_idx - 1, -1], dtype=torch.float32)
+        # Convert to Torch Tensor
+        sequence = torch.tensor(sequence, dtype=torch.float32)
+        label = torch.tensor(label, dtype=torch.bool)
 
-        return seq_data, label
+        return sequence, label
+
 class ProcessDataset():
 
     """ Process Dataset for LSTM Network """
 
-    def __init__(self, batch_size:int=32, sequence_length:int=100, shuffle:bool=True):
+    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, shuffle:bool=True):
 
         # Read CSV Files
         dataframe_list = self.read_csv_files()
 
         # Add Experiment ID and Boolean Parameter (Open Gripper)
-        dataframe_list = self.complete_dataset(dataframe_list)
-
-        # Merge DataFrames
-        self.dataframe = pd.concat(dataframe_list, ignore_index=True)
+        # dataframe_list = self.complete_dataset(dataframe_list, open_gripper_len=100)
+        dataframe_list = self.complete_dataset(dataframe_list, open_gripper_len=5)
 
         # Dataset Creation
-        dataset = CustomDataset(self.dataframe, sequence_length)
+        dataset = CustomDataset(dataframe_list, sequence_length, stride)
 
         # DataLoader Creation
         self.split_dataloader(dataset, batch_size, train_size=0.8, test_size=0.15, validation_size=0.05, shuffle=shuffle)
-
-    def get_dataframe(self) -> pd.DataFrame:
-
-        """ Get DataFrame """
-
-        return self.dataframe
 
     def get_datasets(self) -> CustomDataset:
 
@@ -94,18 +158,15 @@ class ProcessDataset():
 
         return dataframe_list
 
-    def complete_dataset(self, dataframe_list: List[pd.DataFrame]) -> List[pd.DataFrame]:
+    def complete_dataset(self, dataframe_list: List[pd.DataFrame], open_gripper_len:int=100) -> List[pd.DataFrame]:
 
-        """ Complete Dataset - Add Experiment ID and Boolean Parameter (Open Gripper) """
+        """ Complete Dataset - Add Boolean Parameter (Open Gripper) """
 
-        for i, df in enumerate(dataframe_list):
-
-            # Add Experiment ID
-            df['experiment_id'] = i
+        for _, df in enumerate(dataframe_list):
 
             # Add Boolean Parameter (Open Gripper - 1 if last 100 samples, 0 otherwise)
             df['open_gripper'] = 0
-            df.iloc[-100:, df.columns.get_loc('open_gripper')] = 1
+            df.iloc[-open_gripper_len:, df.columns.get_loc('open_gripper')] = 1
 
         return dataframe_list
 
@@ -125,4 +186,5 @@ class ProcessDataset():
 
 if __name__ == '__main__':
 
-    ProcessDataset(32, 100, True)
+    # ProcessDataset(32, 100, 10, True)
+    ProcessDataset(32, 10, 2, True)
