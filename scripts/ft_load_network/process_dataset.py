@@ -62,9 +62,8 @@ class CustomDataset(Dataset):
         if os.path.exists(f'{PACKAGE_PATH}/dataset/{name}.pkl'):
 
             # Override Self with Loaded Dataset
-            print(colored(f'\nLoading Dataset...\n', 'green'))
-            self.sequences, self.labels, self.class_weight = self.load_dataset()
-            print('Loaded')
+            print(colored(f'\nLoading Dataset...', 'green'))
+            self.sequences, self.labels, self.class_weight = self.load_dataset(name)
 
             return
 
@@ -109,13 +108,13 @@ class CustomDataset(Dataset):
         if 'weighted_loss' in balance_strategy: self.apply_weighted_loss()
 
         print(colored(f'\nDataset Created: \n', 'green'))
-        print(f'Sequences: {len(self.sequences)} | Labels: {len(self.labels)}')
-        print(f'Sequences - Classes 0: {np.count_nonzero([1 if all(t == torch.Tensor([1,0])) else 0 for t in self.labels])}')
-        print(f'Sequences - Classes 1: {np.count_nonzero([1 if all(t == torch.Tensor([0,1])) else 0 for t in self.labels])}')
-        print(f'Class Weights: {self.class_weight}')
+        print(f'    Sequences: {len(self.sequences)} | Labels: {len(self.labels)}')
+        print(f'    Sequences - Classes 0: {np.count_nonzero([1 if all(t == torch.Tensor([1,0])) else 0 for t in self.labels])}')
+        print(f'    Sequences - Classes 1: {np.count_nonzero([1 if all(t == torch.Tensor([0,1])) else 0 for t in self.labels])}')
+        print(f'    Class Weights: {self.class_weight}')
 
         # Save Dataset
-        print(colored(f'\nSaving Dataset\n', 'green'))
+        print(colored(f'\nSaving Dataset...', 'green'))
         self.save_dataset(name)
 
     def get_dataset_name(self, sequence_length, stride, balance_strategy) -> str:
@@ -133,18 +132,26 @@ class CustomDataset(Dataset):
 
         # Save Dataset to File
         with open(f'{PACKAGE_PATH}/dataset/{name}.pkl', 'wb') as file:
-            dill.dump((self), file)
+            dill.dump((self.sequences, self.labels, self.class_weight), file)
+            print('Saved')
 
-    def load_dataset(self) -> Tuple[List[torch.Tensor], List[torch.Tensor], torch.Tensor]:
+    def load_dataset(self, name:str='dataset') -> Tuple[List[torch.Tensor], List[torch.Tensor], torch.Tensor]:
 
         """ Load Dataset from File - Dill """
 
         # Load Dataset from File
-        with open(f'{PACKAGE_PATH}/dataset/dataset.pkl', 'rb') as file:
-            dataset:CustomDataset = dill.load(file)
+        with open(f'{PACKAGE_PATH}/dataset/{name}.pkl', 'rb') as file:
+            sequences, labels, class_weight = dill.load(file)
+            print('Loaded')
+
+        print(colored(f'\nDataset Loaded: \n', 'green'))
+        print(f'    Sequences: {len(sequences)} | Labels: {len(labels)}')
+        print(f'    Sequences - Classes 0: {np.count_nonzero([1 if all(t == torch.Tensor([1,0])) else 0 for t in labels])}')
+        print(f'    Sequences - Classes 1: {np.count_nonzero([1 if all(t == torch.Tensor([0,1])) else 0 for t in labels])}')
+        print(f'    Class Weights: {class_weight}')
 
         # Return Sequences, Labels and Class Weights
-        return dataset.sequences, dataset.labels, dataset.class_weight
+        return sequences, labels, class_weight
 
     def __len__(self):
 
