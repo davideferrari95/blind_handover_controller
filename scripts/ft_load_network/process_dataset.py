@@ -22,7 +22,8 @@ if TEST:
     # Data Path - Hyperparameters - Balance Strategy
     DATA_PATH = f'{PACKAGE_PATH}/data_test'
     BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 8, 10, 1, 3
-    BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling', 'smote']
+    BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
+    LOAD_VELOCITIES = True
 
 else:
 
@@ -30,6 +31,7 @@ else:
     DATA_PATH = f'{PACKAGE_PATH}/data'
     BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 512, 1000, 10, 100
     BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
+    LOAD_VELOCITIES = True
 
 class CustomDataset(Dataset):
 
@@ -170,24 +172,6 @@ class CustomDataset(Dataset):
             self.sequences.pop(index)
             self.labels.pop(index)
 
-    def apply_smote(self):
-
-        """ Apply SMOTE (Synthetic Minority Over-sampling Technique) to the Dataset """
-
-        print(colored('    Applying SMOTE', 'yellow'))
-
-        # Get Sequences and Labels as Numpy Arrays
-        sequences_np = torch.stack(self.sequences).numpy()
-        labels_np = torch.cat(self.labels).numpy()[:, 1]
-
-        # Apply SMOTE
-        smote = SMOTE(sampling_strategy='auto', random_state=42)
-        sequences_resampled, labels_resampled = smote.fit_resample(sequences_np, labels_np)
-
-        # Convert to Torch Tensors
-        self.sequences = [torch.tensor(seq, dtype=torch.float32) for seq in sequences_resampled]
-        self.labels = [torch.nn.functional.one_hot(torch.tensor(label), num_classes=2) for label in labels_resampled]
-
 class ProcessDataset():
 
     """ Process Dataset for LSTM Network """
@@ -197,7 +181,6 @@ class ProcessDataset():
         1. Weighted Loss -> Apply Class Weights to the Loss Function
         2. Oversampling  -> Resample the Minority Class
         3. Undersampling -> Resample the Majority Class
-        4. SMOTE         -> Synthetic Minority Over-sampling Technique
 
     """
 
@@ -252,12 +235,12 @@ class ProcessDataset():
             # Assert DataFrames Length Match
             assert len(velocity_df) == len(ft_sensor_df), f'DataFrames Length Mismatch | {folder} | {len(velocity_df)} != {len(ft_sensor_df)}'
 
-            # Merge DataFrames
-            # df = pd.concat([velocity_df, ft_sensor_df], axis=1)
+            # Merge DataFrames if Load Velocities
+            if LOAD_VELOCITIES: df = pd.concat([velocity_df, ft_sensor_df], axis=1)
+            else: df = ft_sensor_df
 
             # Append DataFrame to List
-            # dataframe_list.append(df)
-            dataframe_list.append(ft_sensor_df)
+            dataframe_list.append(df)
 
         return dataframe_list
 

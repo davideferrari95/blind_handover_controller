@@ -3,6 +3,7 @@
 import rclpy, threading, time
 from rclpy.node import Node
 from typing import List
+from termcolor import colored
 
 # Import ROS Messages
 from sensor_msgs.msg import JointState
@@ -10,8 +11,8 @@ from geometry_msgs.msg import Wrench
 
 # Import PyTorch Lightning NN Model
 from train_network import torch, SEQUENCE_LENGTH
-from train_network import FeedforwardModel, LSTMModel, CNNModel
-from process_dataset import PACKAGE_PATH
+from train_network import FeedforwardModel, LSTMModel, CNNModel, MultiClassifierModel
+from process_dataset import PACKAGE_PATH, LOAD_VELOCITIES
 from pl_utils import load_hyperparameters
 
 class GripperControlNode(Node):
@@ -44,9 +45,12 @@ class GripperControlNode(Node):
         input_size, hidden_size, output_size, num_layers, learning_rate = load_hyperparameters(f'{PACKAGE_PATH}/model')
 
         # Load NN Model
-        self.model = FeedforwardModel(input_size * SEQUENCE_LENGTH, hidden_size, output_size, learning_rate)
-        # self.model = CNNModel(input_size, hidden_size, output_size, sequence_length, learning_rate)
-        # self.model = LSTMModel(input_size, hidden_size, output_size, num_layers, learning_rate)
+        # self.model = FeedforwardModel(input_size * SEQUENCE_LENGTH, hidden_size, output_size)
+        self.model = MultiClassifierModel(input_size * SEQUENCE_LENGTH, hidden_size, output_size)
+        # self.model = CNNModel(input_size, hidden_size, output_size, sequence_length)
+        # self.model = LSTMModel(input_size, hidden_size, output_size, num_layers)
+
+        print(colored(f'\nModel Loaded:\n', 'green'), self.model, '\n')
 
         # ROS2 Subscriber Initialization
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states',      self.jointStatesCallback, 1)
@@ -84,13 +88,13 @@ class GripperControlNode(Node):
 
         """ Get the Entire Buffer """
 
-        # Prepare the Data Vector for the Model
-        # data = [joint.velocity.tolist() + [ft_sensor.force.x, ft_sensor.force.y, ft_sensor.force.z, ft_sensor.torque.x, ft_sensor.torque.y, ft_sensor.torque.z]
-        #         for joint, ft_sensor in zip(self.joint_states_data_list, self.ft_sensor_data_list)]
+        # Prepare the Data Vector for the Model - Joint States and FT Sensor Data
+        if LOAD_VELOCITIES: data = [joint.velocity.tolist() + [ft_sensor.force.x, ft_sensor.force.y, ft_sensor.force.z, ft_sensor.torque.x, ft_sensor.torque.y, ft_sensor.torque.z]
+                                    for joint, ft_sensor in zip(self.joint_states_data_list, self.ft_sensor_data_list)]
 
-        # Prepare the Data Vector for the Model
-        data = [[ft_sensor.force.x, ft_sensor.force.y, ft_sensor.force.z, ft_sensor.torque.x, ft_sensor.torque.y, ft_sensor.torque.z]
-                for joint, ft_sensor in zip(self.joint_states_data_list, self.ft_sensor_data_list)]
+        # Prepare the Data Vector for the Model - FT Sensor Data Only
+        else: data = [[ft_sensor.force.x, ft_sensor.force.y, ft_sensor.force.z, ft_sensor.torque.x, ft_sensor.torque.y, ft_sensor.torque.z]
+                      for joint, ft_sensor in zip(self.joint_states_data_list, self.ft_sensor_data_list)]
 
         # Return the Data as a Tensor
         return torch.tensor(data).unsqueeze(0)
@@ -116,7 +120,7 @@ class GripperControlNode(Node):
         data = self.get_tensor_data()
 
         # Return if the Buffer is not Full
-        if data.shape[1] < SEQUENCE_LENGTH: return
+        if data.shape[0] < SEQUENCE_LENGTH: return
 
         # Save the Data
         with open(f'{PACKAGE_PATH}/bag/data.csv', 'w') as file:

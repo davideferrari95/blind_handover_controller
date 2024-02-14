@@ -1,5 +1,5 @@
-import os
 from typing import List, Tuple
+from termcolor import colored
 
 import torch
 import pytorch_lightning as pl
@@ -18,27 +18,15 @@ from pl_utils import StartTestingCallback, StartTrainingCallback, StartValidatio
 # Set Torch Matmul Precision
 torch.set_float32_matmul_precision('high')
 
-class FeedforwardModel(pl.LightningModule):
+class BaseModel(pl.LightningModule):
 
-    """ Feedforward Neural Network PyTorch Lightning Model """
+    """ Base Neural Network PyTorch Lightning Model """
 
-    def __init__(self, input_size:int, hidden_size:List[int], output_size:int, learning_rate:float=0.001):
+    def __init__(self):
 
         """ Neural Network Initialization """
 
-        super(FeedforwardModel, self).__init__()
-
-        # Save Hyperparameters
-        self.input_size, self.output_size, self.hidden_size = input_size, output_size, hidden_size
-        self.learning_rate = learning_rate
-
-        # Create Neural Network Fully Connected Layers
-        self.fc1 = torch.nn.Linear(input_size, hidden_size[0])
-        self.fc2 = torch.nn.Linear(hidden_size[0], hidden_size[1])
-        self.fc3 = torch.nn.Linear(hidden_size[-1], output_size)
-
-        # Sigmoid Activation
-        self.sigmoid = torch.nn.Sigmoid()
+        super(BaseModel, self).__init__()
 
         # Initialize Accuracy Metrics
         self.train_accuracy, self.test_accuracy, self.val_accuracy = Accuracy(task="binary"), Accuracy(task="binary"), Accuracy(task="binary")
@@ -50,18 +38,7 @@ class FeedforwardModel(pl.LightningModule):
 
     def forward(self, x:torch.Tensor):
 
-        # Reshape X to a Flat Vector
-        x = x.view(x.size(0), -1)
-
-        # Pass through Fully Connected Layers
-        x = self.fc1(x)
-        x = torch.nn.functional.relu(x)
-        x = self.fc2(x)
-        x = torch.nn.functional.relu(x)
-        x = self.fc3(x)
-
-        # Sigmoid Activation
-        return self.sigmoid(x)
+        return x
 
     def training_step(self, batch:Tuple[torch.Tensor, torch.Tensor], batch_idx):
 
@@ -141,30 +118,33 @@ class FeedforwardModel(pl.LightningModule):
         # Use AdamW Optimizer
         return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
 
-class MultiClassifierModel(FeedforwardModel):
+class FeedforwardModel(BaseModel):
 
-    """ Multi-Classifier Neural Network PyTorch Lightning Model """
+    """ Feedforward Neural Network PyTorch Lightning Model """
 
-    def __init__(self, input_size:int, hidden_size:List[int], num_classes:int, learning_rate:float=0.001, class_weights:torch.Tensor=torch.tensor([1.0, 1.0])):
+    def __init__(self, input_size:int, hidden_size:List[int], output_size:int, learning_rate:float=0.001):
 
         """ Neural Network Initialization """
 
-        super(MultiClassifierModel, self).__init__(input_size, hidden_size, num_classes)
+        super(FeedforwardModel, self).__init__()
 
         # Save Hyperparameters
-        self.input_size, self.num_classes, self.hidden_size = input_size, num_classes, hidden_size
+        self.input_size, self.output_size, self.hidden_size = input_size, output_size, hidden_size
         self.learning_rate = learning_rate
 
         # Create Neural Network Fully Connected Layers
         self.fc1 = torch.nn.Linear(input_size, hidden_size[0])
         self.fc2 = torch.nn.Linear(hidden_size[0], hidden_size[1])
-        self.fc3 = torch.nn.Linear(hidden_size[-1], num_classes)
+        self.fc3 = torch.nn.Linear(hidden_size[-1], output_size)
+
+        # Sigmoid Activation
+        self.sigmoid = torch.nn.Sigmoid()
 
         # Initialize Accuracy Metrics
         self.train_accuracy, self.test_accuracy, self.val_accuracy = Accuracy(task="binary"), Accuracy(task="binary"), Accuracy(task="binary")
 
-        # Initialize Loss (Weighted Loss - Class Imbalance)
-        self.loss = torch.nn.BCEWithLogitsLoss(weight=class_weights)
+        # Initialize Loss
+        self.loss = torch.nn.BCELoss()
         self.valid_loss, self.num_val_batches  = 0, 0
         self.test_loss,  self.num_test_batches = 0, 0
 
@@ -181,10 +161,56 @@ class MultiClassifierModel(FeedforwardModel):
         x = self.fc3(x)
 
         # Sigmoid Activation
+        return self.sigmoid(x)
+
+class MultiClassifierModel(BaseModel):
+
+    """ Multi-Classifier Neural Network PyTorch Lightning Model """
+
+    def __init__(self, input_size:int, hidden_size:List[int], num_classes:int, learning_rate:float=0.001, class_weights:torch.Tensor=torch.tensor([1.0, 1.0])):
+
+        """ Neural Network Initialization """
+
+        super(MultiClassifierModel, self).__init__()
+
+        # Save Hyperparameters
+        self.input_size, self.output_size, self.hidden_size = input_size, num_classes, hidden_size
+        self.learning_rate = learning_rate
+
+        # Create Neural Network Fully Connected Layers
+        self.fc1 = torch.nn.Linear(input_size, hidden_size[0])
+        self.fc2 = torch.nn.Linear(hidden_size[0], hidden_size[1])
+        self.fc3 = torch.nn.Linear(hidden_size[-1], num_classes)
+
+        print(colored(f'Model Initialized:\n', 'green'), self, '\n')
+
+        # Initialize Accuracy Metrics
+        self.train_accuracy, self.test_accuracy, self.val_accuracy = Accuracy(task="binary"), Accuracy(task="binary"), Accuracy(task="binary")
+
+        # Initialize Loss (Weighted Loss - Class Imbalance)
+        self.loss = torch.nn.BCEWithLogitsLoss(weight=class_weights)
+        self.valid_loss, self.num_val_batches  = 0, 0
+        self.test_loss,  self.num_test_batches = 0, 0
+
+    def forward(self, x:torch.Tensor):
+
+        # print(x.shape)
+
+        # Reshape X to a Flat Vector
+        x = x.view(x.size(0), -1)
+
+        # print(x.shape)
+
+        # Pass through Fully Connected Layers
+        x = self.fc1(x)
+        x = torch.nn.functional.relu(x)
+        x = self.fc2(x)
+        x = torch.nn.functional.relu(x)
+        x = self.fc3(x)
+
         return x
 
-
-class CNNModel(FeedforwardModel):
+class CNNModel(BaseModel):
 
     """ Convolutional Neural Network PyTorch Lightning Model """
 
@@ -192,7 +218,7 @@ class CNNModel(FeedforwardModel):
 
         """ Neural Network Initialization """
 
-        super(CNNModel, self).__init__(input_channels, hidden_size, output_size)
+        super(CNNModel, self).__init__()
 
         # Save Hyperparameters
         self.input_channels, self.output_size, self.hidden_size = input_channels, output_size, hidden_size
@@ -228,7 +254,7 @@ class CNNModel(FeedforwardModel):
         # Sigmoid Activation
         return self.sigmoid(x)
 
-class LSTMModel(FeedforwardModel):
+class LSTMModel(BaseModel):
 
     """ LSTM Neural Network PyTorch Lightning Model """
 
@@ -236,7 +262,7 @@ class LSTMModel(FeedforwardModel):
 
         """ Neural Network Initialization """
 
-        super(LSTMModel, self).__init__(input_size, hidden_size, output_size)
+        super(LSTMModel, self).__init__()
 
         # Save Hyperparameters
         self.input_size, self.output_size = input_size, output_size
@@ -296,7 +322,7 @@ class TrainingNetwork():
         learning_rate = 0.001
 
         # Save Hyperparameters in Config File
-        save_hyperparameters(f'{PACKAGE_PATH}/model', input_size, hidden_size, output_size, num_layers, learning_rate)
+        save_hyperparameters(f'{PACKAGE_PATH}/model', input_size * sequence_length, hidden_size, output_size, num_layers, learning_rate)
 
         # Create NN Model
         # self.model = FeedforwardModel(input_size * sequence_length, hidden_size, output_size, learning_rate).to(DEVICE)
@@ -342,7 +368,7 @@ class TrainingNetwork():
         trainer.validate(self.model, dataloaders=self.val_dataloader)
 
         # Save Model
-        save_model(os.path.join(f'{PACKAGE_PATH}/model'), 'model.pth', self.model)
+        # save_model(os.path.join(f'{PACKAGE_PATH}/model'), 'model.pth', self.model)
 
 if __name__ == '__main__':
 
