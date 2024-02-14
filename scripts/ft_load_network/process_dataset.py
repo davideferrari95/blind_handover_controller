@@ -122,7 +122,7 @@ class CustomDataset(Dataset):
 
         """ Get Dataset Name """
 
-        return f'dataset_{sequence_length}_{stride}_{"_".join([s[0] for s in balance_strategy])}'
+        return f'dataset_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
 
     def save_dataset(self, name:str='dataset'):
 
