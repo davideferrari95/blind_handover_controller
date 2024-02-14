@@ -1,5 +1,6 @@
 import os, pandas as pd
-from typing import List
+from typing import List, Tuple
+from termcolor import colored
 
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split
@@ -8,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from pathlib import Path
 PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 DATA_PATH = f'{PACKAGE_PATH}/data'
+# DATA_PATH = f'{PACKAGE_PATH}/data_test'
 
 """
 proviamo diversamente:
@@ -75,7 +77,7 @@ class CustomDataset(Dataset):
         self.sequences, self.labels = [], []
 
         # Iterating over the List of DataFrames
-        for df in dataframe_list:
+        for num, df in enumerate(dataframe_list):
 
             # Iterating over the DataFrame to Create Sequences and Labels
             for i in range(0, len(df) - sequence_length + 1, stride):
@@ -87,6 +89,9 @@ class CustomDataset(Dataset):
                 # Append Sequence and Label to Lists
                 self.sequences.append(sequence)
                 self.labels.append(label)
+
+                # Debug
+                print(f'DataFrame {num+1} | Sequence {len(self.sequences)} | Label {label}')
 
     def __len__(self):
 
@@ -100,7 +105,7 @@ class CustomDataset(Dataset):
 
         # Convert to Torch Tensor
         sequence = torch.tensor(sequence, dtype=torch.float32)
-        label = torch.tensor(label, dtype=torch.bool)
+        label = torch.tensor(label, dtype=torch.float32)
 
         return sequence, label
 
@@ -108,28 +113,31 @@ class ProcessDataset():
 
     """ Process Dataset for LSTM Network """
 
-    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, shuffle:bool=True):
+    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True):
 
         # Read CSV Files
         dataframe_list = self.read_csv_files()
 
         # Add Experiment ID and Boolean Parameter (Open Gripper)
-        # dataframe_list = self.complete_dataset(dataframe_list, open_gripper_len=100)
-        dataframe_list = self.complete_dataset(dataframe_list, open_gripper_len=5)
+        dataframe_list = self.complete_dataset(dataframe_list, open_gripper_len=open_gripper_len)
 
         # Dataset Creation
         dataset = CustomDataset(dataframe_list, sequence_length, stride)
+        self.sequence_shape = dataset[0][0].shape
 
         # DataLoader Creation
         self.split_dataloader(dataset, batch_size, train_size=0.8, test_size=0.15, validation_size=0.05, shuffle=shuffle)
 
-    def get_datasets(self) -> CustomDataset:
+        # Print
+        print(colored('\nDataLoader Created\n', 'green'))
+
+    def get_datasets(self) -> Tuple[CustomDataset, CustomDataset, CustomDataset]:
 
         """ Get Train, Test and Validation Datasets """
 
         return self.train_dataset, self.test_dataset, self.val_dataset
 
-    def get_dataloaders(self) -> DataLoader:
+    def get_dataloaders(self) -> Tuple[DataLoader, DataLoader, DataLoader]:
 
         """ Get Train, Test and Validation DataLoaders """
 
@@ -151,10 +159,11 @@ class ProcessDataset():
             assert len(velocity_df) == len(ft_sensor_df), f'DataFrames Length Mismatch | {folder} | {len(velocity_df)} != {len(ft_sensor_df)}'
 
             # Merge DataFrames
-            df = pd.concat([velocity_df, ft_sensor_df], axis=1)
+            # df = pd.concat([velocity_df, ft_sensor_df], axis=1)
 
             # Append DataFrame to List
-            dataframe_list.append(df)
+            # dataframe_list.append(df)
+            dataframe_list.append(ft_sensor_df)
 
         return dataframe_list
 
@@ -186,5 +195,5 @@ class ProcessDataset():
 
 if __name__ == '__main__':
 
-    # ProcessDataset(32, 100, 10, True)
-    ProcessDataset(32, 10, 2, True)
+    # ProcessDataset(32, 100, 10, 100, True)
+    ProcessDataset(32, 10, 2, 2, True)

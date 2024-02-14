@@ -1,3 +1,5 @@
+#! /usr/bin/env python3
+
 import rclpy, threading, time
 from rclpy.node import Node
 from typing import List
@@ -7,7 +9,7 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Wrench
 
 # Import PyTorch Lightning NN Model
-from train_network import LSTMModel, SEQUENCE_LENGTH
+from train_network import torch, LSTMModel, SEQUENCE_LENGTH
 from process_dataset import PACKAGE_PATH
 from pl_utils import load_hyperparameters
 
@@ -16,8 +18,9 @@ class GripperControlNode(Node):
     """ Gripper Control Node Class """
 
     # Initial FT Sensor and Joint States Data
-    joint_states = JointState()
-    ft_sensor_data = Wrench()
+    joint_states, ft_sensor_data = JointState(), Wrench()
+    joint_states.name = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+    joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Data Lists
     joint_states_data_list:List[JointState] = []
@@ -74,12 +77,20 @@ class GripperControlNode(Node):
         if len(self.joint_states_data_list) > SEQUENCE_LENGTH: self.joint_states_data_list.pop(0)
         if len(self.ft_sensor_data_list) > SEQUENCE_LENGTH: self.ft_sensor_data_list.pop(0)
 
-    def get_data(self):
+    def get_tensor_data(self):
 
         """ Get the Entire Buffer """
 
-        return [[joint.velocity, ft_sensor.force.x, ft_sensor.force.y, ft_sensor.force.z, ft_sensor.torque.x, ft_sensor.torque.y, ft_sensor.torque.z]
+        # Prepare the Data Vector for the Model
+        # data = [joint.velocity.tolist() + [ft_sensor.force.x, ft_sensor.force.y, ft_sensor.force.z, ft_sensor.torque.x, ft_sensor.torque.y, ft_sensor.torque.z]
+        #         for joint, ft_sensor in zip(self.joint_states_data_list, self.ft_sensor_data_list)]
+
+        # Prepare the Data Vector for the Model
+        data = [[ft_sensor.force.x, ft_sensor.force.y, ft_sensor.force.z, ft_sensor.torque.x, ft_sensor.torque.y, ft_sensor.torque.z]
                 for joint, ft_sensor in zip(self.joint_states_data_list, self.ft_sensor_data_list)]
+
+        # Return the Data as a Tensor
+        return torch.tensor(data).unsqueeze(0)
 
     def clear_buffer(self):
 
@@ -99,17 +110,22 @@ class GripperControlNode(Node):
         self.append_new_data(self.joint_states, self.ft_sensor_data)
 
         # Get the Entire Buffer
-        data = self.get_data()
+        data = self.get_tensor_data()
 
         # Return if the Buffer is not Full
-        if len(data) < SEQUENCE_LENGTH: return
+        if data.shape[1] < SEQUENCE_LENGTH: return
+
+        # Save the Data
+        with open(f'{PACKAGE_PATH}/bag/data.csv', 'w') as file:
+            for d in data.squeeze().tolist():
+                file.write(','.join([str(i) for i in d]) + '\n')
 
         # Pass the Data to the Model
-        output = self.model.forward(data)
+        output = self.model(data)
         print(f'Output: {output}')
 
         # Rate Sleep
-        self.rate.sleep()
+        # self.rate.sleep()
 
 if __name__ == '__main__':
 

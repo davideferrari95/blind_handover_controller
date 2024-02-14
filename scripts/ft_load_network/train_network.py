@@ -16,7 +16,8 @@ from pl_utils import StartTestingCallback, StartTrainingCallback, StartValidatio
 
 # Set Torch Matmul Precision
 torch.set_float32_matmul_precision('high')
-SEQUENCE_LENGTH, STRIDE = 100, 10
+BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 64, 100, 10, 100
+# BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 8, 10, 1, 3
 
 class LSTMModel(pl.LightningModule):
 
@@ -31,13 +32,14 @@ class LSTMModel(pl.LightningModule):
         self.learning_rate = learning_rate
 
         # Create Neural Network Layers
+        # self.gru = torch.nn.GRU(input_size=input_size, hidden_size=hidden_size[0], num_layers=num_layers, batch_first=True)
         self.lstm = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size[0], num_layers=num_layers, batch_first=True)
 
         # Hidden Fully Connected Layer
-        # self.fc1 = torch.nn.Linear(hidden_size[0], hidden_size[1])
+        self.fc1 = torch.nn.Linear(hidden_size[0], hidden_size[1])
 
         # Last Fully Connected Layer
-        self.fc = torch.nn.Linear(hidden_size[-1], output_size)
+        self.fc2 = torch.nn.Linear(hidden_size[-1], output_size)
 
         # Sigmoid Activation
         self.sigmoid = torch.nn.Sigmoid()
@@ -57,8 +59,8 @@ class LSTMModel(pl.LightningModule):
         lstm_out, _ = self.lstm(x)
 
         # Only Last Time Step Output
-        output = self.fc(lstm_out[:, -1, :])
-        # output = self.fc2(output)
+        output = self.fc1(lstm_out[:, -1, :])
+        output = self.fc2(output)
 
         # Sigmoid Activation
         return self.sigmoid(output)
@@ -145,18 +147,16 @@ class TrainingNetwork():
 
     """ Train LSTM Network """
 
-    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, shuffle:bool=True):
+    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True):
 
         # Process Dataset
-        process_dataset = ProcessDataset(batch_size, sequence_length, stride, shuffle)
+        process_dataset = ProcessDataset(batch_size, sequence_length, stride, open_gripper_len, shuffle)
 
-        # Get Dataset and  DataLoader
-        dataframe = process_dataset.get_dataframe()
+        # Get DataLoaders
         self.train_dataloader, self.test_dataloader, self.val_dataloader = process_dataset.get_dataloaders()
 
         # Model Hyperparameters (Input Size, Hidden Size, Output Size, Number of Layers)
-        # input_size, hidden_size, output_size, num_layers = dataframe.shape[1] - 2, [512, 128], 1, 1
-        input_size, hidden_size, output_size, num_layers = dataframe.shape[1] - 2, [64], 1, 1
+        input_size, hidden_size, output_size, num_layers = process_dataset.sequence_shape[1], [512, 128], 1, 1
         learning_rate = 0.001
 
         # Save Hyperparameters in Config File
@@ -183,7 +183,7 @@ class TrainingNetwork():
             # Instantiate Early Stopping Callback
             # callbacks = [StartTrainingCallback(), StartTestingCallback(), StartValidationCallback(),
             callbacks = [StartTrainingCallback(), StartTestingCallback(),
-                        EarlyStopping(monitor='train_loss', mode='min', min_delta=0, patience=100, verbose=True)],
+                        EarlyStopping(monitor='train_loss', mode='min', min_delta=0, patience=50, verbose=True)],
 
             # Custom TensorBoard Logger
             logger = pl_loggers.TensorBoardLogger(save_dir=f'{PACKAGE_PATH}/model/data/logs/'),
@@ -194,14 +194,14 @@ class TrainingNetwork():
         )
 
         # Train Model
-        # trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader, val_dataloaders=self.val_dataloader)
-        trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader)
+        trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader, val_dataloaders=self.val_dataloader)
+        # trainer.fit(self.lstm_model, train_dataloaders=self.train_dataloader)
 
         # Test Model
         trainer.test(self.lstm_model, dataloaders=self.test_dataloader)
 
         # Validate Model
-        # trainer.validate(self.lstm_model, dataloaders=self.val_dataloader)
+        trainer.validate(self.lstm_model, dataloaders=self.val_dataloader)
 
         # Save Model
         save_model(os.path.join(f'{PACKAGE_PATH}/model'), 'model.pth', self.lstm_model)
@@ -209,6 +209,5 @@ class TrainingNetwork():
 if __name__ == '__main__':
 
     # Train LSTM Network
-    # training_network = TrainingNetwork(batch_size=1024, sequence_length=SEQUENCE_LENGTH, shuffle=True)
-    training_network = TrainingNetwork(batch_size=1024, sequence_length=SEQUENCE_LENGTH, stride=STRIDE, shuffle=False)
+    training_network = TrainingNetwork(batch_size=BATCH_SIZE, sequence_length=SEQUENCE_LENGTH, open_gripper_len=OPEN_GRIPPER_LEN, stride=STRIDE, shuffle=True)
     training_network.train_network()
