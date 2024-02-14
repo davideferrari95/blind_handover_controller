@@ -1,4 +1,5 @@
-from typing import List, Tuple
+import os
+from typing import List, Tuple, Optional
 from termcolor import colored
 
 import torch
@@ -8,8 +9,8 @@ from pytorch_lightning import Trainer, loggers as pl_loggers
 from torchmetrics.classification import Accuracy
 
 # Import Processed Dataset and DataLoader
-from process_dataset import ProcessDataset, PACKAGE_PATH
-from process_dataset import BATCH_SIZE, SEQUENCE_LENGTH, OPEN_GRIPPER_LEN, STRIDE, BALANCE_STRATEGY
+from process_dataset import ProcessDataset, PACKAGE_PATH, OPEN_GRIPPER_LEN, BALANCE_STRATEGY
+from process_dataset import BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE
 
 # Import Callbacks and Utilities
 from pl_utils import save_model, save_hyperparameters, DEVICE
@@ -35,6 +36,35 @@ class BaseModel(pl.LightningModule):
         self.loss = torch.nn.BCELoss()
         self.valid_loss, self.num_val_batches  = 0, 0
         self.test_loss,  self.num_test_batches = 0, 0
+
+    # Neural Network Creation Function
+    def mlp(self, input_size:int, output_size:int, hidden_size:Optional[List[int]]=[512,256], hidden_mod=torch.nn.ReLU(), output_mod=Optional[torch.nn.Module]):
+
+        ''' Neural Network Creation Function '''
+
+        # No Hidden Layers
+        if hidden_size is None or hidden_size == []:
+
+            # Only one Linear Layer
+            net = [torch.nn.Linear(input_size, output_size)]
+
+        else:
+
+            # First Layer with ReLU Activation
+            net = [torch.nn.Linear(input_size, hidden_size[0]), hidden_mod]
+
+            # Add the Hidden Layers
+            for i in range(len(hidden_size) - 1):
+                net += [torch.nn.Linear(hidden_size[i], hidden_size[i+1]), hidden_mod]
+
+            # Add the Output Layer
+            net.append(torch.nn.Linear(hidden_size[-1], output_size))
+
+        if output_mod is not None:
+            net.append(output_mod)
+
+        # Create a Sequential Neural Network
+        return torch.nn.Sequential(*net)
 
     def forward(self, x:torch.Tensor):
 
@@ -178,37 +208,25 @@ class MultiClassifierModel(BaseModel):
         self.learning_rate = learning_rate
 
         # Create Neural Network Fully Connected Layers
-        self.fc1 = torch.nn.Linear(input_size, hidden_size[0])
-        self.fc2 = torch.nn.Linear(hidden_size[0], hidden_size[1])
-        self.fc3 = torch.nn.Linear(hidden_size[-1], num_classes)
+        self.net = self.mlp(input_size, num_classes, hidden_size, torch.nn.ReLU(), torch.nn.Softmax(dim=1))
 
-        print(colored(f'Model Initialized:\n', 'green'), self, '\n')
+        print(colored(f'Model Initialized:\n\n', 'green'), self, '\n')
 
         # Initialize Accuracy Metrics
         self.train_accuracy, self.test_accuracy, self.val_accuracy = Accuracy(task="binary"), Accuracy(task="binary"), Accuracy(task="binary")
 
         # Initialize Loss (Weighted Loss - Class Imbalance)
-        self.loss = torch.nn.BCEWithLogitsLoss(weight=class_weights)
+        self.loss = torch.nn.CrossEntropyLoss(weight=class_weights)
         self.valid_loss, self.num_val_batches  = 0, 0
         self.test_loss,  self.num_test_batches = 0, 0
 
     def forward(self, x:torch.Tensor):
 
-        # print(x.shape)
-
         # Reshape X to a Flat Vector
         x = x.view(x.size(0), -1)
 
-        # print(x.shape)
-
-        # Pass through Fully Connected Layers
-        x = self.fc1(x)
-        x = torch.nn.functional.relu(x)
-        x = self.fc2(x)
-        x = torch.nn.functional.relu(x)
-        x = self.fc3(x)
-
-        return x
+        # Pass through NN Layers
+        return self.net(x)
 
 class CNNModel(BaseModel):
 
@@ -318,7 +336,7 @@ class TrainingNetwork():
         self.train_dataloader, self.test_dataloader, self.val_dataloader = process_dataset.get_dataloaders()
 
         # Model Hyperparameters (Input Size, Hidden Size, Output Size, Number of Layers)
-        input_size, hidden_size, output_size, num_layers = process_dataset.sequence_shape[1], [256, 128], 2, 1
+        input_size, hidden_size, output_size, num_layers = process_dataset.sequence_shape[1], HIDDEN_SIZE, 2, 1
         learning_rate = 0.001
 
         # Save Hyperparameters in Config File
@@ -368,7 +386,7 @@ class TrainingNetwork():
         trainer.validate(self.model, dataloaders=self.val_dataloader)
 
         # Save Model
-        # save_model(os.path.join(f'{PACKAGE_PATH}/model'), 'model.pth', self.model)
+        save_model(os.path.join(f'{PACKAGE_PATH}/model'), 'model.pth', self.model)
 
 if __name__ == '__main__':
 
