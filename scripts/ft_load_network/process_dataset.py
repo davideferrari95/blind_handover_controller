@@ -1,4 +1,4 @@
-import os, pandas as pd
+import os, dill, pandas as pd
 import numpy as np
 from typing import List, Tuple
 from termcolor import colored
@@ -21,7 +21,7 @@ if TEST:
 
     # Data Path - Hyperparameters - Balance Strategy
     DATA_PATH = f'{PACKAGE_PATH}/data_test'
-    BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 8, 10, 1, 3
+    BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 8, [256, 128], 10, 1, 3
     BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
     LOAD_VELOCITIES = True
 
@@ -29,7 +29,7 @@ else:
 
     # Data Path - Hyperparameters - Balance Strategy
     DATA_PATH = f'{PACKAGE_PATH}/data'
-    BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 512, 1000, 10, 100
+    BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 512, [2048, 1024, 512], 1000, 10, 100
     BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
     LOAD_VELOCITIES = True
 
@@ -52,6 +52,21 @@ class CustomDataset(Dataset):
     """
 
     def __init__(self, dataframe_list:List[pd.DataFrame], sequence_length:int=100, stride:int=10, balance_strategy:List[str]=['weighted_loss']):
+
+        """ Initialize Custom Dataset """
+
+        # Get Dataset Name
+        name = self.get_dataset_name(sequence_length, stride, balance_strategy)
+
+        # Load Dataset if Exists
+        if os.path.exists(f'{PACKAGE_PATH}/dataset/{name}.pkl'):
+
+            # Override Self with Loaded Dataset
+            print(colored(f'\nLoading Dataset...\n', 'green'))
+            self.sequences, self.labels, self.class_weight = self.load_dataset()
+            print('Loaded')
+
+            return
 
         assert len(dataframe_list) > 0, 'Empty DataFrame List'
         assert sequence_length > 0, 'Invalid Sequence Length'
@@ -98,6 +113,38 @@ class CustomDataset(Dataset):
         print(f'Sequences - Classes 0: {np.count_nonzero([1 if all(t == torch.Tensor([1,0])) else 0 for t in self.labels])}')
         print(f'Sequences - Classes 1: {np.count_nonzero([1 if all(t == torch.Tensor([0,1])) else 0 for t in self.labels])}')
         print(f'Class Weights: {self.class_weight}')
+
+        # Save Dataset
+        print(colored(f'\nSaving Dataset\n', 'green'))
+        self.save_dataset(name)
+
+    def get_dataset_name(self, sequence_length, stride, balance_strategy) -> str:
+
+        """ Get Dataset Name """
+
+        return f'dataset_{sequence_length}_{stride}_{"_".join([s[0] for s in balance_strategy])}'
+
+    def save_dataset(self, name:str='dataset'):
+
+        """ Save Dataset to File - Dill """
+
+        # Create Directory if it Doesn't Exist
+        os.makedirs(f'{PACKAGE_PATH}/dataset', exist_ok=True)
+
+        # Save Dataset to File
+        with open(f'{PACKAGE_PATH}/dataset/{name}.pkl', 'wb') as file:
+            dill.dump((self), file)
+
+    def load_dataset(self) -> Tuple[List[torch.Tensor], List[torch.Tensor], torch.Tensor]:
+
+        """ Load Dataset from File - Dill """
+
+        # Load Dataset from File
+        with open(f'{PACKAGE_PATH}/dataset/dataset.pkl', 'rb') as file:
+            dataset:CustomDataset = dill.load(file)
+
+        # Return Sequences, Labels and Class Weights
+        return dataset.sequences, dataset.labels, dataset.class_weight
 
     def __len__(self):
 

@@ -46,6 +46,9 @@ def save_hyperparameters(save_path:str, input_size:int, hidden_size:List[int], o
         'learning_rate': str(learning_rate)
     }
 
+    # Create Directory if it Doesn't Exist
+    os.makedirs(save_path, exist_ok=True)
+
     # Write Config File
     with open(os.path.join(save_path, 'config.ini'), 'w') as FILE:
         config.write(FILE)
