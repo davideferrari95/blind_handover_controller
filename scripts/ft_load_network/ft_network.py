@@ -2,7 +2,7 @@
 
 import rclpy, threading, time
 from rclpy.node import Node
-from typing import List
+from typing import List, Tuple
 from termcolor import colored
 
 # Import ROS Messages
@@ -25,8 +25,8 @@ class GripperControlNode(Node):
     joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Data Lists
-    joint_states_data_list:List[JointState] = []
-    ft_sensor_data_list:List[Wrench] = []
+    joint_states_data_list:List[JointState] = [joint_states]*1000
+    ft_sensor_data_list:List[Wrench] = [ft_sensor_data]*1000
 
     def __init__(self, ros_rate:int=500):
 
@@ -45,12 +45,11 @@ class GripperControlNode(Node):
         input_size, hidden_size, output_size, num_layers, learning_rate = load_hyperparameters(f'{PACKAGE_PATH}/model')
 
         # Load NN Model
-        # self.model = FeedforwardModel(input_size * SEQUENCE_LENGTH, hidden_size, output_size)
-        self.model = MultiClassifierModel(input_size * SEQUENCE_LENGTH, hidden_size, output_size)
+        print(colored(f'\nLoading Model: ', 'green'), f'{PACKAGE_PATH}/model\n')
+        # self.model = FeedforwardModel(input_size, hidden_size, output_size)
+        self.model = MultiClassifierModel(input_size, hidden_size, output_size)
         # self.model = CNNModel(input_size, hidden_size, output_size, sequence_length)
         # self.model = LSTMModel(input_size, hidden_size, output_size, num_layers)
-
-        print(colored(f'\nModel Loaded:\n', 'green'), self.model, '\n')
 
         # ROS2 Subscriber Initialization
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states',      self.jointStatesCallback, 1)
@@ -84,7 +83,7 @@ class GripperControlNode(Node):
         if len(self.joint_states_data_list) > SEQUENCE_LENGTH: self.joint_states_data_list.pop(0)
         if len(self.ft_sensor_data_list) > SEQUENCE_LENGTH: self.ft_sensor_data_list.pop(0)
 
-    def get_tensor_data(self):
+    def get_tensor_data(self) -> Tuple[int, torch.Tensor]:
 
         """ Get the Entire Buffer """
 
@@ -97,7 +96,7 @@ class GripperControlNode(Node):
                       for joint, ft_sensor in zip(self.joint_states_data_list, self.ft_sensor_data_list)]
 
         # Return the Data as a Tensor
-        return torch.tensor(data).unsqueeze(0)
+        return len(self.joint_states_data_list), torch.tensor(data).unsqueeze(0)
 
     def clear_buffer(self):
 
@@ -117,15 +116,15 @@ class GripperControlNode(Node):
         self.append_new_data(self.joint_states, self.ft_sensor_data)
 
         # Get the Entire Buffer
-        data = self.get_tensor_data()
+        length, data = self.get_tensor_data()
 
         # Return if the Buffer is not Full
-        if data.shape[0] < SEQUENCE_LENGTH: return
+        if length < SEQUENCE_LENGTH: return
 
         # Save the Data
-        with open(f'{PACKAGE_PATH}/bag/data.csv', 'w') as file:
-            for d in data.squeeze().tolist():
-                file.write(','.join([str(i) for i in d]) + '\n')
+        # with open(f'{PACKAGE_PATH}/bag/data.csv', 'w') as file:
+        #     for d in data.squeeze().tolist():
+        #         file.write(','.join([str(i) for i in d]) + '\n')
 
         # Pass the Data to the Model
         output = self.model(data)
