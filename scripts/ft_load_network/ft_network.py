@@ -9,7 +9,8 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Wrench
 
 # Import PyTorch Lightning NN Model
-from train_network import torch, LSTMModel, SEQUENCE_LENGTH
+from train_network import torch, SEQUENCE_LENGTH
+from train_network import FeedforwardModel, LSTMModel, CNNModel
 from process_dataset import PACKAGE_PATH
 from pl_utils import load_hyperparameters
 
@@ -43,7 +44,9 @@ class GripperControlNode(Node):
         input_size, hidden_size, output_size, num_layers, learning_rate = load_hyperparameters(f'{PACKAGE_PATH}/model')
 
         # Load NN Model
-        self.model = LSTMModel(input_size, hidden_size, output_size, num_layers, learning_rate)
+        self.model = FeedforwardModel(input_size * SEQUENCE_LENGTH, hidden_size, output_size, learning_rate)
+        # self.model = CNNModel(input_size, hidden_size, output_size, sequence_length, learning_rate)
+        # self.model = LSTMModel(input_size, hidden_size, output_size, num_layers, learning_rate)
 
         # ROS2 Subscriber Initialization
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states',      self.jointStatesCallback, 1)

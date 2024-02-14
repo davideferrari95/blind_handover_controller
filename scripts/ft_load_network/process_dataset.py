@@ -1,53 +1,35 @@
 import os, pandas as pd
+import numpy as np
 from typing import List, Tuple
 from termcolor import colored
 
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 
+# Import Sklearn and Imblearn
+from sklearn.utils import resample
+from imblearn.over_sampling import SMOTE
+
 # Get Data Path
 from pathlib import Path
 PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
-DATA_PATH = f'{PACKAGE_PATH}/data'
-# DATA_PATH = f'{PACKAGE_PATH}/data_test'
 
-"""
-proviamo diversamente:
+TEST = False
+# TEST = True
 
-creo il dataset e lo processo così:
+if TEST:
 
-    1. per ogni cartella in data -> faccio un dataframe con i dati di joint_states_data.csv e ft_sensor_data.csv
-    2. aggiungo una colonna experiment_id che è l'indice della cartella, e una colonna open_gripper che è 1 se siamo negli ultimi 100 samples, 0 altrimenti
-    3. aggiungo il dataframe alla lista dataframe_list
+    # Data Path - Hyperparameters - Balance Strategy
+    DATA_PATH = f'{PACKAGE_PATH}/data_test'
+    BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 8, 10, 1, 3
+    BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling', 'smote']
 
-poi creo il dataset e i dataloader così:
+else:
 
-    1. creo un dataset con la lista di dataframe
-    2. ogni dataframe nella lista verrà salvato come un item del dataset
-    3. quando chiedo il getitem del dataset, mi ritorna uno slice di 100 samples del dataframe idx, e l'etichetta è l'open_gripper dell'ultimo sample
-
-alternativa:
-
-    1. per ogni dataframe creo un numero M di sequenze di N samples, con stride S:
-
-        Ad esempio, se hai un DataFrame di lunghezza 1000 e vuoi creare sequenze di 50 campioni con uno stride di 10, il processo potrebbe apparire così:
-
-        Sequenza 1: campioni 1-50
-        Sequenza 2: campioni 11-60
-        Sequenza 3: campioni 21-70
-        E così via...
-
-    2. ogni sequenza diventa un item del dataset, e l'etichetta è l'open_gripper dell'ultimo sample
-    3. quando chiedo il getitem del dataset, mi ritorna una di queste sequenze con il label correlato
-
-creo il modello e lo addestro così:
-
-    1. creo un modello con LSTM, FC Layer, Sigmoid + BCELoss e AdamW come ottimizzatore
-    input_size = dataframe.shape[1] - 2, hidden_size = [64], output_size = 1, num_layers = sequence_length, learning_rate = 0.001
-    2. addestro il modello con il train_dataloader e il val_dataloader
-    3. testo il modello con il test_dataloader
-
-"""
+    # Data Path - Hyperparameters - Balance Strategy
+    DATA_PATH = f'{PACKAGE_PATH}/data'
+    BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 512, 1000, 10, 100
+    BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
 
 class CustomDataset(Dataset):
 
@@ -67,7 +49,7 @@ class CustomDataset(Dataset):
         Repeat for all DataFrames in the List
     """
 
-    def __init__(self, dataframe_list:List[pd.DataFrame], sequence_length:int=100, stride:int=10):
+    def __init__(self, dataframe_list:List[pd.DataFrame], sequence_length:int=100, stride:int=10, balance_strategy:List[str]=['weighted_loss']):
 
         assert len(dataframe_list) > 0, 'Empty DataFrame List'
         assert sequence_length > 0, 'Invalid Sequence Length'
@@ -86,12 +68,34 @@ class CustomDataset(Dataset):
                 sequence = df.iloc[i:i+sequence_length, :-1].values
                 label = df.iloc[i+sequence_length-1, -1]
 
+                # Convert to Torch Tensor
+                sequence = torch.tensor(sequence, dtype=torch.float32)
+                label = torch.tensor(label)
+                label = torch.nn.functional.one_hot(label, num_classes=2)
+
                 # Append Sequence and Label to Lists
                 self.sequences.append(sequence)
                 self.labels.append(label)
 
                 # Debug
                 print(f'DataFrame {num+1} | Sequence {len(self.sequences)} | Label {label}')
+
+        # Initialize Class Weights
+        self.class_weight = torch.tensor([1.0, 1.0])
+
+        # Apply Balance Strategy
+        for strategy in balance_strategy: assert strategy in ['weighted_loss', 'oversampling', 'undersampling', 'smote'], f'Invalid Balance Strategy: {strategy}'
+        if balance_strategy is not None: print(colored('\nApplying Balance Strategy\n', 'green'))
+        if 'undersampling' in balance_strategy: self.apply_undersampling()
+        if 'oversampling'  in balance_strategy: self.apply_oversampling()
+        if 'smote'         in balance_strategy: self.apply_smote()
+        if 'weighted_loss' in balance_strategy: self.apply_weighted_loss()
+
+        print(colored(f'\nDataset Created: \n', 'green'))
+        print(f'Sequences: {len(self.sequences)} | Labels: {len(self.labels)}')
+        print(f'Sequences - Classes 0: {np.count_nonzero([1 if all(t == torch.Tensor([1,0])) else 0 for t in self.labels])}')
+        print(f'Sequences - Classes 1: {np.count_nonzero([1 if all(t == torch.Tensor([0,1])) else 0 for t in self.labels])}')
+        print(f'Class Weights: {self.class_weight}')
 
     def __len__(self):
 
@@ -103,17 +107,101 @@ class CustomDataset(Dataset):
         sequence = self.sequences[idx]
         label = self.labels[idx]
 
-        # Convert to Torch Tensor
-        sequence = torch.tensor(sequence, dtype=torch.float32)
-        label = torch.tensor(label, dtype=torch.float32)
-
         return sequence, label
+
+    def apply_weighted_loss(self):
+
+        """ Apply Weighted Loss to the Dataset """
+
+        print(colored('    Applying Weighted Loss', 'yellow'))
+
+        # Get Sequences and Labels as Numpy Arrays
+        labels_concatenated = [1 if all(t == torch.Tensor([0,1])) else 0 for t in self.labels]
+
+        # Compute Class Weights
+        class_counts = torch.bincount(torch.tensor(labels_concatenated))
+        total_samples = float(sum(class_counts))
+        class_weights = total_samples / (2.0 * class_counts.float())
+
+        # Compute Class Weights Tensor
+        self.class_weight = torch.tensor([class_weights[0], class_weights[1]])
+
+    def apply_oversampling(self):
+
+        """ Apply Oversampling to the Dataset """
+
+        print(colored('    Applying Oversampling', 'yellow'))
+
+        # Get Sequences and Labels as Numpy Arrays
+        labels_concatenated = [1 if all(t == torch.Tensor([0,1])) else 0 for t in self.labels]
+
+        # Get Indices of Majority and Minority Classes
+        minority_indices = torch.where(torch.tensor(labels_concatenated) == 1)[0]
+        majority_indices = torch.where(torch.tensor(labels_concatenated) == 0)[0]
+
+        # Resample the Minority Class
+        oversampled_indices = resample(minority_indices.numpy(), n_samples=len(minority_indices)*(len(majority_indices)//len(minority_indices)//2))
+
+        # Update Sequences and Labels
+        self.sequences += [self.sequences[i] for i in oversampled_indices]
+        self.labels += [self.labels[i] for i in oversampled_indices]
+
+    def apply_undersampling(self):
+
+        """ Apply Undersampling to the Dataset """
+
+        print(colored('    Applying Undersampling', 'yellow'))
+
+        # Get Sequences and Labels as Numpy Arrays
+        labels_concatenated = [1 if all(t == torch.Tensor([0,1])) else 0 for t in self.labels]
+
+        # Get Indices of Majority and Minority Classes
+        minority_indices = torch.where(torch.tensor(labels_concatenated) == 1)[0]
+        majority_indices = torch.where(torch.tensor(labels_concatenated) == 0)[0]
+
+        # Resample the Majority Class
+        undersampled_indices = resample(majority_indices.numpy(), n_samples=len(majority_indices)//(len(majority_indices)//len(minority_indices)//2))
+
+        # Remove Duplicates
+        undersampled_indices = list(dict.fromkeys(undersampled_indices))
+
+        # Update Sequences and Labels
+        for index in sorted(undersampled_indices, reverse=True):
+            self.sequences.pop(index)
+            self.labels.pop(index)
+
+    def apply_smote(self):
+
+        """ Apply SMOTE (Synthetic Minority Over-sampling Technique) to the Dataset """
+
+        print(colored('    Applying SMOTE', 'yellow'))
+
+        # Get Sequences and Labels as Numpy Arrays
+        sequences_np = torch.stack(self.sequences).numpy()
+        labels_np = torch.cat(self.labels).numpy()[:, 1]
+
+        # Apply SMOTE
+        smote = SMOTE(sampling_strategy='auto', random_state=42)
+        sequences_resampled, labels_resampled = smote.fit_resample(sequences_np, labels_np)
+
+        # Convert to Torch Tensors
+        self.sequences = [torch.tensor(seq, dtype=torch.float32) for seq in sequences_resampled]
+        self.labels = [torch.nn.functional.one_hot(torch.tensor(label), num_classes=2) for label in labels_resampled]
 
 class ProcessDataset():
 
     """ Process Dataset for LSTM Network """
 
-    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True):
+    """ Balance Strategies:
+
+        1. Weighted Loss -> Apply Class Weights to the Loss Function
+        2. Oversampling  -> Resample the Minority Class
+        3. Undersampling -> Resample the Majority Class
+        4. SMOTE         -> Synthetic Minority Over-sampling Technique
+
+    """
+
+    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True, balance_strategy:List[str]=['weighted_loss']):
 
         # Read CSV Files
         dataframe_list = self.read_csv_files()
@@ -122,11 +210,11 @@ class ProcessDataset():
         dataframe_list = self.complete_dataset(dataframe_list, open_gripper_len=open_gripper_len)
 
         # Dataset Creation
-        dataset = CustomDataset(dataframe_list, sequence_length, stride)
-        self.sequence_shape = dataset[0][0].shape
+        self.dataset = CustomDataset(dataframe_list, sequence_length, stride, balance_strategy)
+        self.sequence_shape = self.dataset[0][0].shape
 
         # DataLoader Creation
-        self.split_dataloader(dataset, batch_size, train_size=0.8, test_size=0.15, validation_size=0.05, shuffle=shuffle)
+        self.split_dataloader(self.dataset, batch_size, train_size=0.8, test_size=0.15, validation_size=0.05, shuffle=shuffle)
 
         # Print
         print(colored('\nDataLoader Created\n', 'green'))
@@ -142,6 +230,12 @@ class ProcessDataset():
         """ Get Train, Test and Validation DataLoaders """
 
         return self.train_dataloader, self.test_dataloader, self.val_dataloader
+
+    def get_class_weights(self) -> torch.Tensor:
+
+        """ Get Class Weights """
+
+        return self.dataset.class_weight
 
     def read_csv_files(self) -> List[pd.DataFrame]:
 

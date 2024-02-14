@@ -1,7 +1,9 @@
+imblearn
 invoke
 numpy
 numpy-quaternion
 roboticstoolbox-python
 scipy
+sklearn
 spatialmath
 termcolor
