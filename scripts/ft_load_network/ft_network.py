@@ -15,6 +15,14 @@ from train_network import FeedforwardModel, LSTMModel, CNNModel, MultiClassifier
 from process_dataset import PACKAGE_PATH, LOAD_VELOCITIES
 from pl_utils import load_hyperparameters
 
+
+from process_dataset import ProcessDataset, BALANCE_STRATEGY, BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN
+process_dataset = ProcessDataset(BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, True, BALANCE_STRATEGY)
+model_name = process_dataset.dataset.get_model_name()
+sequences, labels = process_dataset.dataset.sequences, process_dataset.dataset.labels
+print(labels[:10])
+
+
 class GripperControlNode(Node):
 
     """ Gripper Control Node Class """
@@ -141,7 +149,22 @@ if __name__ == '__main__':
     # Create Node
     node = GripperControlNode(500)
 
-    while rclpy.ok():
+    for i, _ in enumerate(sequences):
 
-        # Run Node
-        node.main()
+        # Reshape Sequence
+        seq = sequences[i].reshape(-1).unsqueeze(0).unsqueeze(0)
+
+        print(node.model(seq))
+
+# if __name__ == '__main__':
+
+#     # ROS2 Initialization
+#     rclpy.init()
+
+#     # Create Node
+#     node = GripperControlNode(500)
+
+#     while rclpy.ok():
+
+#         # Run Node
+#         node.main()
