@@ -10,18 +10,9 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Wrench
 
 # Import PyTorch Lightning NN Model
-from train_network import torch, SEQUENCE_LENGTH
-from train_network import FeedforwardModel, LSTMModel, CNNModel, MultiClassifierModel
-from process_dataset import PACKAGE_PATH, LOAD_VELOCITIES
-from pl_utils import load_hyperparameters
-
-
-from process_dataset import ProcessDataset, BALANCE_STRATEGY, BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN
-process_dataset = ProcessDataset(BATCH_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, True, BALANCE_STRATEGY)
-model_name = process_dataset.dataset.get_model_name()
-sequences, labels = process_dataset.dataset.sequences, process_dataset.dataset.labels
-print(labels[:10])
-
+from train_network import FeedforwardModel, LSTMModel, CNNModel, MultiClassifierModel, BinaryClassifierModel
+from process_dataset import PACKAGE_PATH, SEQUENCE_LENGTH, LOAD_VELOCITIES, MODEL_TYPE, STRIDE, BALANCE_STRATEGY
+from pl_utils import torch, load_hyperparameters, load_model, get_config_name
 
 class GripperControlNode(Node):
 
@@ -33,8 +24,11 @@ class GripperControlNode(Node):
     joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Data Lists
-    joint_states_data_list:List[JointState] = [joint_states]*1000
-    ft_sensor_data_list:List[Wrench] = [ft_sensor_data]*1000
+    joint_states_data_list:List[JointState] = []
+    ft_sensor_data_list:List[Wrench] = []
+
+    # Predicted Output List
+    predicted_output_list:List[float] = []
 
     def __init__(self, ros_rate:int=500):
 
@@ -50,14 +44,21 @@ class GripperControlNode(Node):
         self.spin_thread.start()
 
         # Load Hyperparameters
-        input_size, hidden_size, output_size, num_layers, learning_rate = load_hyperparameters(f'{PACKAGE_PATH}/model')
+        model_name, _, model_type, input_size, hidden_size, output_size, sequence_length, num_layers, _ = \
+            load_hyperparameters(f'{PACKAGE_PATH}/model', get_config_name(MODEL_TYPE, SEQUENCE_LENGTH, STRIDE, BALANCE_STRATEGY))
 
         # Load NN Model
-        print(colored(f'\nLoading Model: ', 'green'), f'{PACKAGE_PATH}/model\n')
-        # self.model = FeedforwardModel(input_size, hidden_size, output_size)
-        self.model = MultiClassifierModel(input_size, hidden_size, output_size)
-        # self.model = CNNModel(input_size, hidden_size, output_size, sequence_length)
-        # self.model = LSTMModel(input_size, hidden_size, output_size, num_layers)
+        print(colored(f'\nLoading Model: ', 'green'), f'{PACKAGE_PATH}/model/{model_name}.pth\n')
+
+        # Create NN Model
+        if   model_type == 'CNN':              self.model = CNNModel(input_size, hidden_size, output_size, sequence_length)
+        elif model_type == 'LSTM':             self.model = LSTMModel(input_size, hidden_size, output_size, num_layers)
+        elif model_type == 'Feedforward':      self.model = FeedforwardModel(input_size * sequence_length, hidden_size, output_size)
+        elif model_type == 'MultiClassifier':  self.model = MultiClassifierModel(input_size * sequence_length, hidden_size, output_size)
+        elif model_type == 'BinaryClassifier': self.model = BinaryClassifierModel(input_size * sequence_length, hidden_size, output_size)
+
+        # Load Model Weights
+        load_model(f'{PACKAGE_PATH}/model', model_name, self.model)
 
         # ROS2 Subscriber Initialization
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states',      self.jointStatesCallback, 1)
@@ -106,6 +107,19 @@ class GripperControlNode(Node):
         # Return the Data as a Tensor
         return len(self.joint_states_data_list), torch.tensor(data).unsqueeze(0)
 
+    def get_predicted_output(self, new_output:float) -> float:
+
+        """ Get the Predicted Output """
+
+        # Append the New Output
+        self.predicted_output_list.append(new_output)
+
+        # Keep the Buffer Size within the Maximum Limit - Remove the Oldest Data
+        if len(self.predicted_output_list) > SEQUENCE_LENGTH/2: self.predicted_output_list.pop(0)
+
+        # Get the Predicted Output
+        return torch.tensor(self.predicted_output_list)
+
     def clear_buffer(self):
 
         """Clear the buffer"""
@@ -117,29 +131,29 @@ class GripperControlNode(Node):
 
         """ Main Loop """
 
-        # Spin Once
-        rclpy.spin_once(self, timeout_sec=0.5/float(self.ros_rate))
+        while rclpy.ok():
 
-        # Append New Joint States and FT-Sensor Data
-        self.append_new_data(self.joint_states, self.ft_sensor_data)
+            # Spin Once
+            rclpy.spin_once(self, timeout_sec=0.5/float(self.ros_rate))
 
-        # Get the Entire Buffer
-        length, data = self.get_tensor_data()
+            # Append New Joint States and FT-Sensor Data
+            self.append_new_data(self.joint_states, self.ft_sensor_data)
 
-        # Return if the Buffer is not Full
-        if length < SEQUENCE_LENGTH: return
+            # Get the Entire Buffer
+            length, data = self.get_tensor_data()
 
-        # Save the Data
-        # with open(f'{PACKAGE_PATH}/bag/data.csv', 'w') as file:
-        #     for d in data.squeeze().tolist():
-        #         file.write(','.join([str(i) for i in d]) + '\n')
+            # Return if the Buffer is not Full
+            if length < SEQUENCE_LENGTH: continue
 
-        # Pass the Data to the Model
-        output = self.model(data)
-        print(f'Output: {output}')
+            # Pass the Data to the Model -> Get the Predicted Output
+            output:torch.Tensor = self.model(data).detach().numpy()[0]
+            print(f'Output: {output[0]:.3f} | {output[1]:.3f}')
 
-        # Rate Sleep
-        # self.rate.sleep()
+            # Check the Predicted Output
+            if all(self.get_predicted_output(output[1]) > 0.95):
+
+                print(colored(f'Open Gripper', 'green'))
+                break
 
 if __name__ == '__main__':
 
@@ -149,22 +163,5 @@ if __name__ == '__main__':
     # Create Node
     node = GripperControlNode(500)
 
-    for i, _ in enumerate(sequences):
-
-        # Reshape Sequence
-        seq = sequences[i].reshape(-1).unsqueeze(0).unsqueeze(0)
-
-        print(node.model(seq))
-
-# if __name__ == '__main__':
-
-#     # ROS2 Initialization
-#     rclpy.init()
-
-#     # Create Node
-#     node = GripperControlNode(500)
-
-#     while rclpy.ok():
-
-#         # Run Node
-#         node.main()
+    # Run Node
+    node.main()
