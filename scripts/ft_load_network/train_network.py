@@ -1,3 +1,5 @@
+from termcolor import colored
+
 # Import PyTorch Lightning Functions
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning import Trainer, loggers as pl_loggers
@@ -34,12 +36,16 @@ class TrainingNetwork():
         input_size, hidden_size, output_size, num_layers = process_dataset.sequence_shape[1], HIDDEN_SIZE, 2, 1
         learning_rate = 1e-3
 
+        # Not Tested Model Types
+        if model_type in ['CNN', 'Feedforward', 'BinaryClassifier']: print(colored(f'\n{model_type} Model Type Not Tested Yet!\n', 'red'))
+
         # Create NN Model
         if   model_type == 'CNN':              self.model = CNNModel(input_size, hidden_size, output_size, sequence_length, learning_rate).to(DEVICE)
         elif model_type == 'LSTM':             self.model = LSTMModel(input_size, hidden_size, output_size, num_layers, learning_rate).to(DEVICE)
         elif model_type == 'Feedforward':      self.model = FeedforwardModel(input_size * sequence_length, hidden_size, output_size, learning_rate).to(DEVICE)
         elif model_type == 'MultiClassifier':  self.model = MultiClassifierModel(input_size * sequence_length, hidden_size, output_size, learning_rate, class_weights).to(DEVICE)
         elif model_type == 'BinaryClassifier': self.model = BinaryClassifierModel(input_size * sequence_length, hidden_size, output_size, learning_rate).to(DEVICE)
+        else: raise ValueError(f'Invalid Model Type: {model_type}')
 
         # Save Hyperparameters in Config File
         save_hyperparameters(f'{PACKAGE_PATH}/model', config_name, self.model_name, model_type, input_size, hidden_size, output_size, sequence_length, num_layers, learning_rate)
