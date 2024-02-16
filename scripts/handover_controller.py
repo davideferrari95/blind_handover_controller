@@ -331,7 +331,7 @@ class Handover_Controller(Node):
 
         # If Goal Received -> Plan Trajectory
         print(colored(f'Goal Received: ', 'yellow'), f'[{handover_goal}] - Planning Trajectory')
-        trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, handover_goal, 10, self.ros_rate)
+        trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, handover_goal, 5, self.ros_rate)
 
         # Convert Trajectory to Spline
         self.spline_trajectory = self.robot_toolbox.trajectory2spline(trajectory)
@@ -368,6 +368,12 @@ class Handover_Controller(Node):
 
             # Sleep to ROS Rate
             self.rate.sleep()
+
+        # Publish Zero Velocity
+        self.publishRobotVelocity([0.0] * 6)
+
+        # Sleep to ROS Rate
+        self.rate.sleep()
 
 if __name__ == '__main__':
 

@@ -23,10 +23,14 @@ class Experiment(Node):
     joint_states.name = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
     joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-    def __init__(self, robot:str='UR5e'):
+    def __init__(self, robot:str='UR5e', ros_rate:int=500):
 
         # Node Initialization
         super().__init__('FT_Sensor_Experiment')
+
+        # ROS2 Rate
+        self.ros_rate = ros_rate
+        self.rate = self.create_rate(ros_rate)
 
         # ROS2 Publisher & Client Initialization
         self.joint_goal_pub = self.create_publisher(Float64MultiArray, '/handover/joint_goal', 1)
@@ -77,6 +81,8 @@ class Experiment(Node):
     def networkCallback(self, data:Bool):
 
         """ Network Callback """
+
+        print('Network Output:', data.data)
 
         # Get Network Output
         if data.data: self.open_gripper = True
@@ -174,7 +180,13 @@ class Experiment(Node):
         self.open_gripper = False
 
         # Wait for Network to Open Gripper
-        while not self.open_gripper: self.get_logger().info('Waiting for Network to Open Gripper', throttle_duration_sec=5.0, skip_first=False)
+        while not self.open_gripper:
+
+            # Spin Once
+            rclpy.spin_once(self, timeout_sec=0.5/float(self.ros_rate))
+
+            # Log
+            self.get_logger().info('Waiting for Network to Open Gripper', throttle_duration_sec=5.0, skip_first=False)
 
         # Network Opened Gripper
         self.get_logger().info('Network Opened Gripper\n')

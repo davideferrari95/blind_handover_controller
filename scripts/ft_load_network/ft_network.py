@@ -15,6 +15,9 @@ from train_network import FeedforwardModel, LSTMModel, CNNModel, MultiClassifier
 from process_dataset import PACKAGE_PATH, SEQUENCE_LENGTH, LOAD_VELOCITIES, MODEL_TYPE, STRIDE, BALANCE_STRATEGY
 from pl_utils import torch, load_hyperparameters, load_model, get_config_name
 
+# Output Length
+OUTPUT_LENGTH = 1
+
 class GripperControlNode(Node):
 
     """ Gripper Control Node Class """
@@ -119,7 +122,7 @@ class GripperControlNode(Node):
         self.predicted_output_list.append(new_output)
 
         # Keep the Buffer Size within the Maximum Limit - Remove the Oldest Data
-        if len(self.predicted_output_list) > SEQUENCE_LENGTH/2: self.predicted_output_list.pop(0)
+        if len(self.predicted_output_list) > OUTPUT_LENGTH: self.predicted_output_list.pop(0)
 
         # Get the Predicted Output
         return torch.tensor(self.predicted_output_list)
@@ -151,10 +154,10 @@ class GripperControlNode(Node):
 
             # Pass the Data to the Model -> Get the Predicted Output
             output:torch.Tensor = self.model(data).detach().numpy()[0]
-            print(f'Output: {output[0]:.3f} | {output[1]:.3f}')
+            # print(f'Output: {output[0]:.3f} | {output[1]:.3f}')
 
             # Check the Predicted Output
-            if all(self.get_predicted_output(output[1]) > 0.95):
+            if all(self.get_predicted_output(output[1]) > 0.9):
 
                 print(colored(f'Open Gripper', 'green'))
                 self.network_output_publisher.publish(Bool(data=True))
