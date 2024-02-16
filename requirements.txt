@@ -1,5 +1,4 @@
 dill
-imblearn
 invoke
 numpy
 numpy-quaternion
