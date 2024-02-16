@@ -6,6 +6,7 @@ from typing import List, Tuple
 from termcolor import colored
 
 # Import ROS Messages
+from std_msgs.msg import Bool
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Wrench
 
@@ -63,6 +64,9 @@ class GripperControlNode(Node):
         # ROS2 Subscriber Initialization
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states',      self.jointStatesCallback, 1)
         self.ft_sensor_subscriber   = self.create_subscription(Wrench,     '/ur_rtde/ft_sensor', self.FTSensorCallback, 1)
+
+        # ROS2 Publisher Initialization
+        self.network_output_publisher = self.create_publisher(Bool, '/ft_network/open_gripper', 1)
 
         time.sleep(1)
 
@@ -153,6 +157,7 @@ class GripperControlNode(Node):
             if all(self.get_predicted_output(output[1]) > 0.95):
 
                 print(colored(f'Open Gripper', 'green'))
+                self.network_output_publisher.publish(Bool(data=True))
                 break
 
 if __name__ == '__main__':

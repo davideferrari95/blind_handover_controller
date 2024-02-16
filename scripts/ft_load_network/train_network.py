@@ -15,7 +15,6 @@ from process_dataset import HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_L
 from pl_utils import save_model, save_hyperparameters, DEVICE, get_model_name, get_config_name
 from pl_utils import StartTestingCallback, StartTrainingCallback, StartValidationCallback
 
-
 class TrainingNetwork():
 
     """ Train LSTM Network """
