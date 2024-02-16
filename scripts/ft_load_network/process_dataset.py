@@ -1,41 +1,33 @@
-import os, dill, pandas as pd
+import os, dill
 import numpy as np
+import pandas as pd
 from typing import List, Tuple
 from termcolor import colored
 
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split
+from pl_utils import get_dataset_name
 
-# Import Sklearn and Imblearn
+# Import Sklearn Resample
 from sklearn.utils import resample
-from imblearn.over_sampling import SMOTE
 
 # Get Data Path
 from pathlib import Path
 PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 
-TEST = False
-# TEST = True
+# Data Path - Hyperparameters - Balance Strategy
+DATA_PATH = f'{PACKAGE_PATH}/data'
+BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 256, [512, 256], 200, 10, 100
+BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
+LOAD_VELOCITIES = True
 
-if TEST:
-
-    # Data Path - Hyperparameters - Balance Strategy
-    DATA_PATH = f'{PACKAGE_PATH}/data_test'
-    BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 8, [256, 128], 10, 1, 3
-    BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
-    LOAD_VELOCITIES = True
-
-else:
-
-    # Data Path - Hyperparameters - Balance Strategy
-    DATA_PATH = f'{PACKAGE_PATH}/data'
-    BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 512, [2048, 1024, 512], 1000, 10, 100
-    BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
-    LOAD_VELOCITIES = True
+# Model Type (CNN, LSTM, Feedforward, MultiClassifier, BinaryClassifier)
+# MODEL_TYPE = 'MultiClassifier'
+MODEL_TYPE = 'LSTM'
 
 class CustomDataset(Dataset):
 
-    """ Create Custom Dataset for LSTM Network """
+    """ Create Custom Dataset Neural Network """
 
     """
         Input: List of DataFrames, Sequence Length, Stride
@@ -55,15 +47,15 @@ class CustomDataset(Dataset):
 
         """ Initialize Custom Dataset """
 
-        # Get Dataset Name
-        name = self.get_dataset_name(sequence_length, stride, balance_strategy)
+        # Compute Dataset, Model and Config Names
+        dataset_name = get_dataset_name(sequence_length, stride, balance_strategy)
 
         # Load Dataset if Exists
-        if os.path.exists(f'{PACKAGE_PATH}/dataset/{name}.pkl'):
+        if os.path.exists(f'{PACKAGE_PATH}/dataset/{dataset_name}.pkl'):
 
             # Override Self with Loaded Dataset
             print(colored(f'\nLoading Dataset...', 'green'))
-            self.sequences, self.labels, self.class_weight = self.load_dataset(name)
+            self.sequences, self.labels, self.class_weight = self.load_dataset(dataset_name)
 
             return
 
@@ -104,7 +96,6 @@ class CustomDataset(Dataset):
         if balance_strategy is not None: print(colored('\nApplying Balance Strategy\n', 'green'))
         if 'undersampling' in balance_strategy: self.apply_undersampling()
         if 'oversampling'  in balance_strategy: self.apply_oversampling()
-        if 'smote'         in balance_strategy: self.apply_smote()
         if 'weighted_loss' in balance_strategy: self.apply_weighted_loss()
 
         print(colored(f'\nDataset Created: \n', 'green'))
@@ -115,13 +106,7 @@ class CustomDataset(Dataset):
 
         # Save Dataset
         print(colored(f'\nSaving Dataset...', 'green'))
-        self.save_dataset(name)
-
-    def get_dataset_name(self, sequence_length, stride, balance_strategy) -> str:
-
-        """ Get Dataset Name """
-
-        return f'dataset_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
+        self.save_dataset(dataset_name)
 
     def save_dataset(self, name:str='dataset'):
 
