@@ -6,8 +6,8 @@ from pytorch_lightning import Trainer, loggers as pl_loggers
 from networks import LSTMModel, CNNModel, FeedforwardModel, MultiClassifierModel, BinaryClassifierModel
 
 # Import Processed Dataset and DataLoader
-from process_dataset import ProcessDataset, PACKAGE_PATH, OPEN_GRIPPER_LEN, BALANCE_STRATEGY
-from process_dataset import MODEL_TYPE, BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE
+from process_dataset import ProcessDataset, PACKAGE_PATH, MODEL_TYPE, BATCH_SIZE, PATIENCE
+from process_dataset import HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, BALANCE_STRATEGY
 
 # Import Callbacks and Utilities
 from pl_utils import save_model, save_hyperparameters, DEVICE, get_model_name, get_config_name
@@ -55,13 +55,13 @@ class TrainingNetwork():
             devices= 'auto',
 
             # Hyperparameters
-            # min_epochs = 200,
+            min_epochs = 50,
             max_epochs = 500,
             log_every_n_steps = 1,
 
             # Instantiate Early Stopping Callback
             callbacks = [StartTrainingCallback(), StartTestingCallback(),
-                        EarlyStopping(monitor='train_loss', mode='min', min_delta=0, patience=20, verbose=True)],
+                         EarlyStopping(monitor='train_loss', mode='min', min_delta=0, patience=PATIENCE, verbose=True)],
 
             # Custom TensorBoard Logger
             logger = pl_loggers.TensorBoardLogger(save_dir=f'{PACKAGE_PATH}/model/data/logs/'),
@@ -86,5 +86,5 @@ class TrainingNetwork():
 if __name__ == '__main__':
 
     # Train LSTM Network
-    training_network = TrainingNetwork(batch_size=BATCH_SIZE, model_type=MODEL_TYPE, sequence_length=SEQUENCE_LENGTH, open_gripper_len=OPEN_GRIPPER_LEN, stride=STRIDE, shuffle=True)
+    training_network = TrainingNetwork(BATCH_SIZE, MODEL_TYPE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, shuffle=True) 
     training_network.train_network()

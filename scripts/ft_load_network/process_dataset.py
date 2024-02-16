@@ -17,9 +17,9 @@ PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 
 # Data Path - Hyperparameters - Balance Strategy
 DATA_PATH = f'{PACKAGE_PATH}/data'
-BATCH_SIZE, HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = 256, [512, 256], 200, 10, 100
+BATCH_SIZE, PATIENCE, LOAD_VELOCITIES = 256, 50, True
+HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = [512, 256], 200, 10, 100
 BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
-LOAD_VELOCITIES = True
 
 # Model Type (CNN, LSTM, Feedforward, MultiClassifier, BinaryClassifier)
 # MODEL_TYPE = 'MultiClassifier'
@@ -308,8 +308,3 @@ class ProcessDataset():
         self.train_dataloader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=os.cpu_count())
         self.test_dataloader  = DataLoader(self.test_dataset,  batch_size=batch_size, shuffle=False,   num_workers=os.cpu_count())
         self.val_dataloader   = DataLoader(self.val_dataset,   batch_size=batch_size, shuffle=False,   num_workers=os.cpu_count())
-
-if __name__ == '__main__':
-
-    # ProcessDataset(32, 100, 10, 100, True)
-    ProcessDataset(32, 10, 2, 2, True)
