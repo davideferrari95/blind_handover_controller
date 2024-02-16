@@ -50,11 +50,9 @@ Thumbs.db
 
 # Large data files
 dataset/*
-model/*
 
 # Ignore Data Logs
 model/data/logs/*
 
 # Ignore Test Data
 bag/*
-data_test/*
