@@ -12,7 +12,7 @@
 
         ☐ Object Detection:
 
-            - Optitrack Real-Time Tracking
+            ✔ Optitrack Real-Time Tracking @done(24-02-16 16:46)
             - 6IMPOSE RGBD (RealSense) Camera Object Detection
 
         ✔ Trajectory Planning / Replanning: @done(24-01-26 12:56)
@@ -22,7 +22,7 @@
 
         ☐ Physical Handover:
 
-            - Force Sensor Handover Detection (Gripper Load Modulation)
+            ✔ Force Sensor Handover Detection (Gripper Load Modulation) @done(24-02-16 16:46)
             - RGBD Camera Handover Detection
 
         ☐ Post-Handover:
@@ -59,7 +59,7 @@
     ✔ Write the ROS2 Example Package @done(23-11-29 12:35)
     ✔ Convert Alexa in ROS2 @done(23-11-30 14:05)
     ✔ Convert Alexa Conversation in ROS2 @done(23-12-10 17:40)
-    ☐ Convert Mediapipe Gesture Recognition in ROS2
+    ✘ Convert Mediapipe Gesture Recognition in ROS2 @cancelled(24-02-16 16:46)
     ✔ Convert Robot Driver in ROS2 + `move_robot` @done(23-12-10 17:40)
     ✔ Implement Admittance Controller in ROS2 @done(24-01-26 12:59)
 
@@ -72,8 +72,8 @@
 
 4. Handover Impedance Controller:
 
-    ☐ Implement Force-Load Physical Handover with FT-Sensor
-    ☐ Test H2R and R2H with fixed locations / optitrack
+    ✔ Implement Force-Load Physical Handover with FT-Sensor @done(24-02-16 16:47)
+    ✔ Test H2R and R2H with fixed locations / optitrack @done(24-02-16 16:47)
 
     Implementazione PFL:
 
