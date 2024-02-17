@@ -141,7 +141,7 @@ class GripperControlNode(Node):
         while rclpy.ok():
 
             # Spin Once
-            rclpy.spin_once(self, timeout_sec=0.5/float(self.ros_rate))
+            rclpy.spin_once(self, timeout_sec=0.1/float(self.ros_rate))
 
             # Append New Joint States and FT-Sensor Data
             self.append_new_data(self.joint_states, self.ft_sensor_data)

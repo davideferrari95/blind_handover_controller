@@ -18,7 +18,7 @@ PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 # Data Path - Hyperparameters - Balance Strategy
 DATA_PATH = f'{PACKAGE_PATH}/data'
 BATCH_SIZE, PATIENCE, LOAD_VELOCITIES = 256, 50, True
-HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = [512, 256], 200, 10, 100
+HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = [512, 256], 1000, 10, 100
 BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
 
 # Model Type (CNN, LSTM, Feedforward, MultiClassifier, BinaryClassifier)
