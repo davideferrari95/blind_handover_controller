@@ -1,6 +1,6 @@
 from math import pi
 from termcolor import colored
-from typing import Union, List, Tuple, Callable
+from typing import Union, List, Tuple, Callable, Optional
 
 # Import Peter Corke Robotics Toolbox
 import roboticstoolbox as rtb, numpy as np
@@ -108,7 +108,7 @@ class UR_Toolbox():
         # Return Forward Kinematic
         return self.fkine(joint_positions)
 
-    def InverseKinematic(self, pose:Union[Pose, NDArray, SE3]) -> IKSolution:
+    def InverseKinematic(self, pose:Union[Pose, NDArray, SE3], actual_pose:List[float]=[0, -pi/2, pi/2, -pi/2, -pi/2, 0]) -> Optional[np.ndarray]:
 
         """ Inverse Kinematics Using Peter Corke Robotics Toolbox """
 
@@ -119,7 +119,11 @@ class UR_Toolbox():
         if type(pose) is Pose: pose = self.pose2matrix(pose)
         if type(pose) is np.ndarray: pose = self.array2matrix(pose)
 
-        return self.robot.ikine_NR(pose, q0=[0, -pi/2, pi/2, -pi/2, -pi/2, 0])
+        # Compute Inverse Kinematics
+        ik:IKSolution = self.robot.ikine_NR(pose, q0=actual_pose)
+
+        # Return Inverse Kinematics
+        return ik.q if ik.success else None
 
     def Jacobian(self, joint_positions:ArrayLike) -> np.ndarray:
 

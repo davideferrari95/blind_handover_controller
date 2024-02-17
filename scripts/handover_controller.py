@@ -125,6 +125,7 @@ class Handover_Controller(Node):
         # Publishers
         self.joint_velocity_publisher = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
         if self.sim: self.joint_simulation_publisher = self.create_publisher(JointState, '/joint_states', 1)
+        self.human_hand_pose_publisher = self.create_publisher(Pose, '/handover/human_hand', 1)
 
         # Subscribers
         self.joint_state_subscriber    = self.create_subscription(JointState,        '/joint_states',            self.jointStatesCallback, 1)
@@ -181,8 +182,14 @@ class Handover_Controller(Node):
         """ Cartesian Goal Callback """
 
         # Get Joint Goal from Cartesian Goal
-        self.handover_goal = self.robot_toolbox.InverseKinematic(data).q
-        self.goal_received, self.start_admittance = True, False
+        ik = self.robot_toolbox.InverseKinematic(data, actual_pose=self.joint_states.position)
+
+        # If IK is not None
+        if ik is not None:
+
+            # Set Handover Goal
+            self.handover_goal = ik
+            self.goal_received, self.start_admittance = True, False
 
     def jointGoalCallback(self, data:Float64MultiArray):
 
@@ -214,6 +221,9 @@ class Handover_Controller(Node):
 
         # Update Human Vector3 Message
         self.human_point.x, self.human_point.y, self.human_point.z = human_pos.position.x, human_pos.position.y, human_pos.position.z
+
+        # Publish Human Hand Pose
+        self.human_hand_pose_publisher.publish(human_pos)
 
     def robotPointCallback(self, msg:PoseStamped):
 
