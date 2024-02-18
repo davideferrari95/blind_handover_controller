@@ -42,7 +42,6 @@ install(PROGRAMS
 
   # FT Load Experiment
   scripts/experiments/ft_load_experiment.py
-  scripts/experiments/goal_publisher.py
   scripts/experiments/save_data.py
 
   DESTINATION lib/${PROJECT_NAME}
