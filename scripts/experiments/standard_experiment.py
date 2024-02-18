@@ -7,8 +7,8 @@ from typing import List
 # Messages & Services
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Pose
-from std_msgs.msg import Bool, String, Float64MultiArray, MultiArrayDimension
+from geometry_msgs.msg import Pose, Wrench
+from std_msgs.msg import String, Float64MultiArray, MultiArrayDimension
 from ur_rtde_controller.srv import RobotiQGripperControl
 from alexa_conversation.msg import VoiceCommand
 
@@ -22,7 +22,7 @@ class Experiment(Node):
     """ FT-Sensor Experiment Node """
 
     # Initial Joint States Data
-    joint_states = JointState()
+    joint_states, ft_sensor_data = JointState(), Wrench()
     joint_states.name = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
     joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -55,8 +55,8 @@ class Experiment(Node):
 
         # ROS2 Subscriber Initialization
         self.alexa_subscriber           = self.create_subscription(VoiceCommand, '/alexa_conversation/voice_command', self.alexaCallback, 1)
+        self.ft_sensor_subscriber       = self.create_subscription(Wrench,'/ur_rtde/ft_sensor', self.FTSensorCallback, 1)
         self.joint_state_subscriber     = self.create_subscription(JointState, '/joint_states', self.jointStatesCallback, 1)
-        self.network_output_subscriber  = self.create_subscription(Bool, '/ft_network/open_gripper', self.networkCallback, 1)
         self.human_hand_pose_subscriber = self.create_subscription(Pose, '/handover/human_hand', self.humanHandPoseCallback, 1)
 
         time.sleep(1)
@@ -68,14 +68,12 @@ class Experiment(Node):
         # Get Joint States
         self.joint_states = data
 
-    def networkCallback(self, data:Bool):
+    def FTSensorCallback(self, data:Wrench):
 
-        """ Network Callback """
+        """ FT Sensor Callback """
 
-        print('Network Output:', data.data)
-
-        # Get Network Output
-        if data.data: self.open_gripper = True
+        # Get FT Sensor Data
+        self.ft_sensor_data = data
 
     def alexaCallback(self, data:VoiceCommand):
 
@@ -196,24 +194,24 @@ class Experiment(Node):
         self.cartesian_goal_pub.publish(cartesian_pose)
         self.get_logger().info(f'Moving to {goal_name}')
 
-    def wait_for_network(self):
+    def wait_for_ft_load(self):
 
-        """ Wait for Network Output """
+        """ Wait for FT-Load Threshold Output """
 
-        # Initialize Open Gripper Flag
-        self.open_gripper = False
-
-        # Wait for Network to Open Gripper
-        while not self.open_gripper:
+        # Wait to Open Gripper
+        while True:
 
             # Spin Once
             rclpy.spin_once(self, timeout_sec=0.5/float(self.ros_rate))
 
+            # Check FT-Load Threshold -> Break
+            if self.ft_sensor_data.force.z > 10.0: break
+
             # Log
-            self.get_logger().info('Waiting for Network to Open Gripper', throttle_duration_sec=5.0, skip_first=False)
+            self.get_logger().info('Waiting FT-Load Threshold to Open Gripper', throttle_duration_sec=5.0, skip_first=False)
 
         # Network Opened Gripper
-        self.get_logger().info('Network Opened Gripper\n')
+        self.get_logger().info('FT-Load Threshold Opened Gripper\n')
 
     def handover(self, object_name:str):
 
@@ -243,8 +241,8 @@ class Experiment(Node):
         # Publish Alexa TTS
         self.publishAlexaTTS(f"I'm handing you the {object_name}")
 
-        # Wait for Network to Open Gripper
-        self.wait_for_network()
+        # Wait for FT-Load Threshold to Open Gripper
+        self.wait_for_ft_load()
 
         # Open Gripper
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
