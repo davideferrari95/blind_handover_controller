@@ -78,6 +78,40 @@ This package contains an Handover Controller with Admittance and Power and Force
 
         ros2 launch handover_controller handover_controller.launch.py
 
+#### Experiments
+
+- Launch Alexa :
+
+        conda activate alexa_conversation_env
+        ros2 launch alexa_conversation skill_backend.launch.py 
+
+- Launch UR-RTDE Controller
+
+        ros2 launch ur_rtde_controller rtde_controller.launch.py ROBOT_IP:=192.168.2.30 enable_gripper:=true
+
+- Launch main `experiment`:
+
+        ros2 launch handover_controller handover_controller.launch.py
+        ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
+        ros2 launch handover_controller experiment.launch.py
+
+- Launch comparative `standard_experiment`:
+
+        ros2 launch handover_controller standard_handover.launch.py
+        ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
+        ros2 launch handover_controller standard_experiment.launch.py
+
+#### Training FT-Load Neural Network
+
+- Launch `ft_load_experiment` to collect data from the FT Sensor for the Dataset:
+
+        ros2 launch handover_controller handover_controller.launch.py
+        ros2 launch handover_controller ft_experiment.launch.py
+
+- Train the Neural Network with the collected data:
+
+        python scripts/ft_load_network/train_network.py
+
 ## Maintainers
 
 - Davide Ferrari
