@@ -14,12 +14,16 @@ from rclpy.node import Node, Parameter
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Pose, PoseStamped, Wrench
+from geometry_msgs.msg import Pose, PoseStamped, Wrench, Vector3
 
 # Import Robot and UR_RTDE Move Classes
 from utils.move_robot import UR_RTDE_Move
 from utils.robot_toolbox import UR_Toolbox
 from utils.kinematic_wrapper import delete_pycache_folders, PACKAGE_PATH
+
+# Import Admittance and PFL Controllers Classes
+from admittance import AdmittanceController
+from safety_controller import SafetyController
 
 def signal_handler(sig, frame):
 
@@ -53,14 +57,17 @@ def signal_handler(sig, frame):
     time.sleep(1)
     rclpy.try_shutdown()
 
-class Handover_Controller(Node):
+class Standard_Handover(Node):
 
-    """ Handover Controller Class """
+    """ Standard Handover Class """
 
     # Initialize Class Variables
     goal_received, start_admittance = False, False
     joint_states, ft_sensor_data = JointState(), Wrench()
-    robot_base = Pose()
+
+    # Initialize Robot and Human Points Variables
+    human_point, robot_base = Vector3(), Pose()
+    human_vel, human_timer = Vector3(), time.time()
 
     def __init__(self, node_name, ros_rate):
 
@@ -75,6 +82,12 @@ class Handover_Controller(Node):
         self.spin_thread = threading.Thread(target=rclpy.spin, args=(self, ), daemon=True)
         self.spin_thread.start()
 
+        # Declare Parameters
+        self.declare_parameters('', [('admittance_mass', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_damping', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_stiffness', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])])
+        self.declare_parameters('', [('maximum_velocity', [1.05, 1.05, 1.57, 1.57, 1.57, 1.57]), ('maximum_acceleration', [0.57, 0.57, 0.57, 0.57, 0.57, 0.57])])
+        self.declare_parameters('', [('admittance_weight', 0.1), ('force_dead_zone', 4.0), ('torque_dead_zone', 1.0), ('human_radius', 0.2)])
+        self.declare_parameters('', [('use_feedback_velocity', False), ('sim', False), ('complete_debug', False), ('debug', False)])
+
         # Declare Robot Parameters
         self.declare_parameters('', [('robot', 'ur10e'), ('payload', 12.5), ('reach', 1.30), ('tcp_speed', 1.0)]) # kg, m, m/s
         self.declare_parameters('', [('stopping_time', 0.17), ('stopping_distance', 0.25), ('position_repeatability', 0.05)]) # s, m, mm
@@ -86,7 +99,9 @@ class Handover_Controller(Node):
 
         # Read Parameters
         self.force_dead_zone, self.torque_dead_zone = self.get_parameter_value('force_dead_zone'), self.get_parameter_value('torque_dead_zone')
-        self.sim, self.complete_debug, self.debug = self.get_parameter_value('complete_debug'), self.get_parameter_value('debug'), self.get_parameter_value('sim')
+        self.sim, use_feedback_velocity = self.get_parameter_value('sim'), self.get_parameter_value('use_feedback_velocity')
+        self.complete_debug, self.debug = self.get_parameter_value('complete_debug'), self.get_parameter_value('debug')
+        human_radius = self.get_parameter_value('human_radius')
 
         # Read Robot Parameters
         robot_parameters = {param_name : self.get_parameter_value(param_name) for param_name in
@@ -100,9 +115,11 @@ class Handover_Controller(Node):
 
         # Print Parameters
         print(colored('\nPFL Controller Parameters:', 'yellow'), '\n')
+        print(colored('    use_feedback_velocity:', 'green'), f'\t{use_feedback_velocity}')
         print(colored('    complete_debug:', 'green'),        f'\t\t{self.complete_debug}')
         print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
         print(colored('    sim:', 'green'),                   f'\t\t\t{self.sim}')
+        print(colored('    human_radius:', 'green'),          f'\t\t{human_radius}')
         print(colored('    robot:', 'green'),                 f'\t\t\t"{robot_parameters["robot"]}"\n')
 
         # Publishers
@@ -122,6 +139,19 @@ class Handover_Controller(Node):
 
         # Service Clients and Servers
         self.zero_ft_sensor_client  = self.create_client(Trigger, '/ur_rtde/zeroFTSensor')
+        self.stop_admittance_server = self.create_service(Trigger, '/handover/stop', self.stopAdmittanceServerCallback)
+
+        # Initialize Admittance Controller
+        self.admittance_controller = AdmittanceController(
+            self.robot_toolbox, self.rate, use_feedback_velocity = False if self.sim else use_feedback_velocity,
+            M = self.get_parameter_value('admittance_mass') * np.eye(6), D = self.get_parameter_value('admittance_damping') * np.eye(6),
+            K = self.get_parameter_value('admittance_stiffness') * np.eye(6), admittance_weight = self.get_parameter_value('admittance_weight'),
+            max_vel = self.get_parameter_value('maximum_velocity'), max_acc = self.get_parameter_value('maximum_acceleration'),
+            complete_debug = self.complete_debug, debug = self.debug
+        )
+
+        # Initialize PFL Controller
+        self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.ros_rate, self.complete_debug, self.debug)
 
         # Controller Initialized
         print(colored('Standard Handover Controller Initialized\n', 'yellow'))
@@ -178,6 +208,19 @@ class Handover_Controller(Node):
         human_pos = np.linalg.inv(self.robot_toolbox.pose2matrix(self.robot_base).A) @ self.robot_toolbox.pose2matrix(msg.pose).A
         human_pos = self.robot_toolbox.matrix2pose(human_pos)
 
+        # Compute Human Velocity - Update Human Timer
+        # self.human_vel.x, self.human_vel.y, self.human_vel.z = (human_pos.position.x - self.human_point.x) / (time.time() - self.human_timer), \
+        #                                                        (human_pos.position.y - self.human_point.y) / (time.time() - self.human_timer), \
+        #                                                        (human_pos.position.z - self.human_point.z) / (time.time() - self.human_timer)
+        # self.human_timer = time.time()
+
+        # TODO: Check with Human Velocity != 0
+        # self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.25, 0.25, 0.25
+        self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.0, 0.0, 0.0
+
+        # Update Human Vector3 Message
+        self.human_point.x, self.human_point.y, self.human_point.z = human_pos.position.x, human_pos.position.y, human_pos.position.z
+
         # Publish Human Hand Pose
         self.human_hand_pose_publisher.publish(human_pos)
 
@@ -187,6 +230,21 @@ class Handover_Controller(Node):
 
         # Update Robot Base Message
         self.robot_base = msg.pose
+
+    def stopAdmittanceServerCallback(self, req:Trigger.Request, res:Trigger.Response):
+
+        """ Stop Admittance Server Callback """
+
+        print(colored('Admittance Controller Completed\n', 'yellow'))
+        self.goal_received, self.start_admittance = False, False
+
+        # Stop Robot
+        self.old_joint_velocity = [0.0] * 6
+        self.publishRobotVelocity(self.old_joint_velocity)
+
+        # Response Filling
+        res.success = True
+        return res
 
     def zeroFTSensor(self):
 
@@ -235,6 +293,24 @@ class Handover_Controller(Node):
         # Publish Joint States
         if rclpy.ok(): self.joint_simulation_publisher.publish(joint)
 
+    def is_goal_reached(self, goal:Pose, joint_states:JointState):
+
+        """ Check if Goal is Reached """
+
+        # Spin Once
+        rclpy.spin_once(self)
+
+        # Joint Goal to Pose
+        joint_goal = self.move_robot.IK(goal)
+
+        # Check if Goal is Reached
+        if (joint_goal and joint_states):
+
+            # If Goal is Reached -> Return True
+            if (all(abs(joint_states.position[i] - joint_goal[i]) < 0.01 for i in range(len(joint_states)))): return True
+
+        return False
+
     def get_parameter_value(self, parameter_name:str) -> Any:
 
         """ Get Parameter Value """
@@ -267,26 +343,15 @@ class Handover_Controller(Node):
         trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, handover_goal, 5, self.ros_rate)
 
         # Convert Trajectory to Spline
-        self.spline_trajectory, self.current_time = self.robot_toolbox.trajectory2spline(trajectory), 0.0
+        self.spline_trajectory = self.robot_toolbox.trajectory2spline(trajectory)
 
         # Initialize Admittance Controller Variables
+        self.old_joint_velocity = np.array(self.joint_states.velocity)
+        self.scaling_factor, self.current_time = 0.0, 0.0
         self.goal_received, self.start_admittance = False, True
 
         # Start Admittance Controller
-        print(colored('Trajectory Planned - Starting Controller', 'green'))
-
-    def joint_pd_controller(self, q:List[float], q_dot:List[float]) -> List[float]:
-
-        """ PD Controller - Joint Space """
-
-        # PD Controller Gains
-        Kp, Kd = np.diag([100, 100, 100, 100, 100, 100]), np.diag([10, 10, 10, 10, 10, 10])
-
-        # PD Controller
-        joint_velocity = np.dot(Kp, (q - self.joint_states.position)) + np.dot(Kd, (q_dot - self.joint_states.velocity))
-
-        # Return Joint Velocity
-        return joint_velocity
+        print(colored('Trajectory Planned - Starting Admittance Controller', 'green'))
 
     def spinner(self):
 
@@ -298,17 +363,17 @@ class Handover_Controller(Node):
         # While Goal Received
         while (rclpy.ok() and self.start_admittance):
 
-            # Compute Time based on Rate < Last Time Point
-            self.current_time = min(self.spline_trajectory[0].x[-1], self.current_time + 1 / self.ros_rate)
+            # Get Next Cartesian Goal | Increment Counter only if i < last trajectory point
+            cartesian_goal, self.current_time = self.robot_toolbox.get_cartesian_goal(self.spline_trajectory, self.current_time, self.scaling_factor, self.ros_rate)
 
-            # Get q, qd from Splines
-            q, q_dot= self.spline_trajectory[0](self.current_time), self.spline_trajectory[1](self.current_time)
+            # Compute Admittance Velocity - Null FT Sensor
+            desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, Wrench(), self.old_joint_velocity, *cartesian_goal)
 
-            # PD Controller - Joint Space
-            joint_velocity = self.joint_pd_controller(q, q_dot)
+            # Compute Safety Scaling Factor (Safety: SSM | PFL)
+            self.old_joint_velocity, self.scaling_factor = self.safety_controller.compute_safety(desired_joint_velocity, self.old_joint_velocity, self.joint_states, self.human_point, self.human_vel)
 
             # Publish Joint Velocity
-            self.publishRobotVelocity(joint_velocity)
+            self.publishRobotVelocity(self.old_joint_velocity)
 
             # Sleep to ROS Rate
             self.rate.sleep()
@@ -325,11 +390,11 @@ if __name__ == '__main__':
     rclpy.init()
 
     # Initialize Class
-    handover_controller = Handover_Controller('handover_controller', 500)
+    standard_handover = Standard_Handover('standard_handover', 500)
 
     # Zero FT Sensor
-    try: handover_controller.zeroFTSensor()
-    except: handover_controller.get_logger().error('Zero FT Sensor Service Not Available')
+    try: standard_handover.zeroFTSensor()
+    except: standard_handover.get_logger().error('Zero FT Sensor Service Not Available')
 
     # Register Signal Handler (CTRL+C)
     signal.signal(signal.SIGINT, signal_handler)
@@ -337,7 +402,7 @@ if __name__ == '__main__':
     # Main Spinner Function
     while rclpy.ok():
 
-        handover_controller.spinner()
+        standard_handover.spinner()
 
     # Delete Node before Shutdown ROS
-    if handover_controller: del handover_controller
+    if standard_handover: del standard_handover
