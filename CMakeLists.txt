@@ -30,12 +30,21 @@ ament_python_install_package(scripts/utils)
 
 # Install Python Scripts
 install(PROGRAMS
+
+  # Standard Handover
+  scripts/standard_handover.py
+  scripts/standard_experiment.py
+
+  # Handover Controller
   scripts/handover_controller.py
-  scripts/experiments/ft_load_experiment.py
   scripts/experiments/experiment.py
+  scripts/ft_load_network/ft_network.py
+
+  # FT Load Experiment
+  scripts/experiments/ft_load_experiment.py
   scripts/experiments/goal_publisher.py
   scripts/experiments/save_data.py
-  scripts/ft_load_network/ft_network.py
+
   DESTINATION lib/${PROJECT_NAME}
 )
 
