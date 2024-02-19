@@ -13,9 +13,7 @@ from ur_rtde_controller.srv import RobotiQGripperControl
 from alexa_conversation.msg import VoiceCommand
 
 # Import Utils
-import sys, pathlib
-sys.path.append(f'{str(pathlib.Path(__file__).resolve().parents[1])}')
-from utils.object_list import object_list, get_object_pick_position
+from object_list import object_list, get_object_pick_position
 
 class Experiment(Node):
 
@@ -81,7 +79,7 @@ class Experiment(Node):
 
         # Get Alexa Command
         if data.command is VoiceCommand.GET_OBJECT: self.start_handover = True
-        self.requested_object = data.object
+        self.requested_object = data.object if data.object != '' else 'box'
 
     def humanHandPoseCallback(self, data:Pose):
 
@@ -217,7 +215,8 @@ class Experiment(Node):
 
         """ Handover """
 
-        assert object_name in object_list, f'Invalid Object Name: {object_name}'
+        # Assert Object Name
+        assert object_name in [obj.name for obj in object_list], f'Invalid Object Name: {object_name}'
 
         # Get Object Goal
         object_goal = get_object_pick_position(object_name)
