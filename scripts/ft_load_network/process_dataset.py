@@ -17,8 +17,8 @@ PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 
 # Data Path - Hyperparameters - Balance Strategy
 DATA_PATH = f'{PACKAGE_PATH}/data'
-BATCH_SIZE, PATIENCE, LOAD_VELOCITIES, DISTURBANCES = 256, 50, False, True
-HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = [512, 256], 1000, 10, 100
+BATCH_SIZE, PATIENCE, LOAD_VELOCITIES, DISTURBANCES = 1024, 50, False, True
+HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = [512, 256], 250, 10, 100
 BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
 
 # Model Type (CNN, LSTM, Feedforward, MultiClassifier, BinaryClassifier)
@@ -48,7 +48,7 @@ class CustomDataset(Dataset):
         """ Initialize Custom Dataset """
 
         # Compute Dataset, Model and Config Names
-        dataset_name = get_dataset_name(sequence_length, stride, balance_strategy, disturbances)
+        dataset_name = get_dataset_name(sequence_length, stride, balance_strategy, LOAD_VELOCITIES, disturbances)
 
         # Load Dataset if Exists
         if os.path.exists(f'{PACKAGE_PATH}/dataset/{dataset_name}.pkl'):
@@ -65,6 +65,7 @@ class CustomDataset(Dataset):
 
         # Initialize Sequences and Labels
         self.sequences, self.labels = [], []
+        print(colored(f'\nCreating Dataset Sequences...\n', 'green'))
 
         # Iterating over the List of DataFrames
         for num, df in enumerate(dataframe_list):
@@ -226,6 +227,7 @@ class ProcessDataset():
     def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True, balance_strategy:List[str]=['weighted_loss'], disturbances:bool=False):
 
         # Read CSV Files
+        print(colored('\nReading CSV Files', 'green'))
         dataframe_list = self.read_csv_files(DATA_PATH)
 
         # Add Experiment ID and Boolean Parameter (Open Gripper)
@@ -272,10 +274,10 @@ class ProcessDataset():
         for folder in os.listdir(path):
 
             # Skip if not a Directory
-            if not os.path.isdir(f'{path}/{folder}'): print(f'Skipping {folder}'); continue
+            if not os.path.isdir(f'{path}/{folder}'): print(f'Skipping "../{folder}"'); continue
 
             # Skip if not `Test - ...` Folder
-            if not folder.startswith('Test'): print(f'Skipping {folder}'); continue
+            if not folder.startswith('Test'): print(f'Skipping "../{folder}"'); continue
 
             # Read CSV Files
             velocity_df, ft_sensor_df = pd.read_csv(f'{path}/{folder}/joint_states_data.csv'), pd.read_csv(f'{path}/{folder}/ft_sensor_data.csv')
@@ -307,6 +309,8 @@ class ProcessDataset():
     def process_disturbances_data(self) -> List[pd.DataFrame]:
 
         """ Process Disturbances Data """
+
+        print(colored('\nProcessing Disturbances Data\n', 'green'))
 
         # Read Disturbances CSV Files
         disturbances_dataframe_list = self.read_csv_files(f'{DATA_PATH}/Disturbances')

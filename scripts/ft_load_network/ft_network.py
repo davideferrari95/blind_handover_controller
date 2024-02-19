@@ -49,7 +49,7 @@ class GripperControlNode(Node):
 
         # Load Hyperparameters
         model_name, _, model_type, input_size, hidden_size, output_size, sequence_length, num_layers, _ = \
-            load_hyperparameters(f'{PACKAGE_PATH}/model', get_config_name(MODEL_TYPE, SEQUENCE_LENGTH, STRIDE, BALANCE_STRATEGY, DISTURBANCES))
+            load_hyperparameters(f'{PACKAGE_PATH}/model', get_config_name(MODEL_TYPE, SEQUENCE_LENGTH, STRIDE, BALANCE_STRATEGY, LOAD_VELOCITIES, DISTURBANCES))
 
         # Load NN Model
         print(colored(f'\nLoading Model: ', 'green'), f'{model_name}.pth\n')

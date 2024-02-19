@@ -9,7 +9,7 @@ from networks import LSTMModel, CNNModel, FeedforwardModel, MultiClassifierModel
 
 # Import Processed Dataset and DataLoader
 from process_dataset import ProcessDataset, PACKAGE_PATH, MODEL_TYPE, BATCH_SIZE, PATIENCE
-from process_dataset import HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, BALANCE_STRATEGY, DISTURBANCES
+from process_dataset import HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, BALANCE_STRATEGY, LOAD_VELOCITIES, DISTURBANCES
 
 # Import Callbacks and Utilities
 from pl_utils import save_model, save_hyperparameters, DEVICE, get_model_name, get_config_name
@@ -26,7 +26,7 @@ class TrainingNetwork():
         class_weights = process_dataset.get_class_weights()
 
         # Model and Config Names
-        self.model_name, config_name = get_model_name(model_type, sequence_length, stride, BALANCE_STRATEGY, DISTURBANCES), get_config_name(model_type, sequence_length, stride, BALANCE_STRATEGY, DISTURBANCES)
+        self.model_name, config_name = get_model_name(model_type, sequence_length, stride, BALANCE_STRATEGY, LOAD_VELOCITIES, DISTURBANCES), get_config_name(model_type, sequence_length, stride, BALANCE_STRATEGY, LOAD_VELOCITIES, DISTURBANCES)
 
         # Get DataLoaders
         self.train_dataloader, self.test_dataloader, self.val_dataloader = process_dataset.get_dataloaders()
