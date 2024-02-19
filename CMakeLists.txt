@@ -33,7 +33,7 @@ install(PROGRAMS
 
   # Standard Handover
   scripts/standard_handover.py
-  scripts/standard_experiment.py
+  scripts/experiments/standard_experiment.py
 
   # Handover Controller
   scripts/handover_controller.py
