@@ -40,6 +40,11 @@ Sensing and Communication:
     - Implement the `Alexa Conversations` or `Gesture Recognition` for the Handover Request.
     ✔ Implement the Handover Procedure with the `Automatic Success Detection` and `Release` of the Object. @done(24-02-16 17:03)
 
+Comparative Handover:
+
+    ✔ Create a `Standard Hanvoder` node without the `Admittance Controller` and the `Force-Load Transfer` Network. @done(24-02-19 14:09)
+    ✔ Using the same `Handover Controller` Algorithm, with `external_force = 0` in `compute_admittance_velocity` Function. @done(24-02-19 14:09)
+    ✔ Use a `Force-Load Transfer` Threshold to detect the Handover Success (Z -> 10N). @done(24-02-19 14:09)
 
 `------------------------------------------------------------------------------------------------------------------------------------------------------`
 
