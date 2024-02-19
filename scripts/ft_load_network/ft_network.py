@@ -52,7 +52,7 @@ class GripperControlNode(Node):
             load_hyperparameters(f'{PACKAGE_PATH}/model', get_config_name(MODEL_TYPE, SEQUENCE_LENGTH, STRIDE, BALANCE_STRATEGY, DISTURBANCES))
 
         # Load NN Model
-        print(colored(f'\nLoading Model: ', 'green'), f'{PACKAGE_PATH}/model/{model_name}.pth\n')
+        print(colored(f'\nLoading Model: ', 'green'), f'{model_name}.pth\n')
 
         # Create NN Model
         if   model_type == 'CNN':              self.model = CNNModel(input_size, hidden_size, output_size, sequence_length)
