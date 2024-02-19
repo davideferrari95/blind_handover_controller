@@ -17,7 +17,7 @@ PACKAGE_PATH = f'{str(Path(__file__).resolve().parents[2])}'
 
 # Data Path - Hyperparameters - Balance Strategy
 DATA_PATH = f'{PACKAGE_PATH}/data'
-BATCH_SIZE, PATIENCE, LOAD_VELOCITIES = 256, 50, True
+BATCH_SIZE, PATIENCE, LOAD_VELOCITIES, DISTURBANCES = 256, 50, False, True
 HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN = [512, 256], 1000, 10, 100
 BALANCE_STRATEGY = ['weighted_loss', 'oversampling', 'undersampling']
 
@@ -43,12 +43,12 @@ class CustomDataset(Dataset):
         Repeat for all DataFrames in the List
     """
 
-    def __init__(self, dataframe_list:List[pd.DataFrame], sequence_length:int=100, stride:int=10, balance_strategy:List[str]=['weighted_loss']):
+    def __init__(self, dataframe_list:List[pd.DataFrame], sequence_length:int=100, stride:int=10, balance_strategy:List[str]=['weighted_loss'], disturbances:bool=False):
 
         """ Initialize Custom Dataset """
 
         # Compute Dataset, Model and Config Names
-        dataset_name = get_dataset_name(sequence_length, stride, balance_strategy)
+        dataset_name = get_dataset_name(sequence_length, stride, balance_strategy, disturbances)
 
         # Load Dataset if Exists
         if os.path.exists(f'{PACKAGE_PATH}/dataset/{dataset_name}.pkl'):
@@ -223,16 +223,19 @@ class ProcessDataset():
 
     """
 
-    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True, balance_strategy:List[str]=['weighted_loss']):
+    def __init__(self, batch_size:int=32, sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True, balance_strategy:List[str]=['weighted_loss'], disturbances:bool=False):
 
         # Read CSV Files
-        dataframe_list = self.read_csv_files()
+        dataframe_list = self.read_csv_files(DATA_PATH)
 
         # Add Experiment ID and Boolean Parameter (Open Gripper)
         dataframe_list = self.complete_dataset(dataframe_list, open_gripper_len=open_gripper_len)
 
+        # Add Disturbances Data
+        if disturbances: dataframe_list += self.process_disturbances_data()
+
         # Dataset Creation
-        self.dataset = CustomDataset(dataframe_list, sequence_length, stride, balance_strategy)
+        self.dataset = CustomDataset(dataframe_list, sequence_length, stride, balance_strategy, disturbances)
         self.sequence_shape = self.dataset[0][0].shape
 
         # DataLoader Creation
@@ -259,17 +262,23 @@ class ProcessDataset():
 
         return self.dataset.class_weight
 
-    def read_csv_files(self) -> List[pd.DataFrame]:
+    def read_csv_files(self, path:str=DATA_PATH) -> List[pd.DataFrame]:
 
         """ Read CSV Files """
 
         # DataFrames List
         dataframe_list = []
 
-        for folder in os.listdir(DATA_PATH):
+        for folder in os.listdir(path):
+
+            # Skip if not a Directory
+            if not os.path.isdir(f'{path}/{folder}'): print(f'Skipping {folder}'); continue
+
+            # Skip if not `Test - ...` Folder
+            if not folder.startswith('Test'): print(f'Skipping {folder}'); continue
 
             # Read CSV Files
-            velocity_df, ft_sensor_df = pd.read_csv(f'{DATA_PATH}/{folder}/joint_states_data.csv'), pd.read_csv(f'{DATA_PATH}/{folder}/ft_sensor_data.csv')
+            velocity_df, ft_sensor_df = pd.read_csv(f'{path}/{folder}/joint_states_data.csv'), pd.read_csv(f'{path}/{folder}/ft_sensor_data.csv')
 
             # Assert DataFrames Length Match
             assert len(velocity_df) == len(ft_sensor_df), f'DataFrames Length Mismatch | {folder} | {len(velocity_df)} != {len(ft_sensor_df)}'
@@ -294,6 +303,18 @@ class ProcessDataset():
             df.iloc[-open_gripper_len:, df.columns.get_loc('open_gripper')] = 1
 
         return dataframe_list
+
+    def process_disturbances_data(self) -> List[pd.DataFrame]:
+
+        """ Process Disturbances Data """
+
+        # Read Disturbances CSV Files
+        disturbances_dataframe_list = self.read_csv_files(f'{DATA_PATH}/Disturbances')
+
+        # Add Boolean Parameter (Open Gripper = 0)
+        for df in disturbances_dataframe_list: df['open_gripper'] = 0
+
+        return disturbances_dataframe_list
 
     def split_dataloader(self, dataset:Dataset, batch_size:int=64, train_size:float=0.8, test_size:float=0.15, validation_size:float=0.05, shuffle:bool=True):
 

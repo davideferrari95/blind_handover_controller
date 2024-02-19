@@ -42,6 +42,11 @@ class SaveData(Node):
         self.spin_thread = threading.Thread(target=rclpy.spin, args=(self, ), daemon=True)
         self.spin_thread.start()
 
+        # Declare Parameters
+        self.declare_parameter('disturbances', False)
+        self.disturbances = self.get_parameter('disturbances').get_parameter_value().bool_value
+        print(f'Disturbances: {self.disturbances}')
+
         # ROS2 Subscriber Initialization
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states',       self.jointStatesCallback, 1)
         self.ft_sensor_subscriber   = self.create_subscription(Wrench,     '/ur_rtde/ft_sensor',  self.FTSensorCallback, 1)
@@ -92,14 +97,18 @@ class SaveData(Node):
         self.save_data = data.data
         if self.save_data == False: self.stop_save_data = True
 
-    def save(self):
+    def save(self, disturbances:bool=False):
 
         """ Save Data """
 
         print('Saving Data...')
 
+        # Create Save Directory
+        path = f'{PACKAGE_PATH}/data/Disturbances/' if disturbances else f'{PACKAGE_PATH}/data/'
+        os.makedirs(path, exist_ok=True)
+
         # Create Save Files
-        self.create_save_files(f'{PACKAGE_PATH}/data/', 'ft_sensor_data.csv', 'joint_states_data.csv')
+        self.create_save_files(path, 'ft_sensor_data.csv', 'joint_states_data.csv')
 
         # Save Data - FT Sensor
         with open(self.FT_SENSOR_FILE, 'w') as file:
@@ -144,7 +153,7 @@ class SaveData(Node):
             # Rate Sleep
             self.rate.sleep()
 
-        self.save()
+        self.save(self.disturbances)
         print('Data Saved\n')
 
 if __name__ == '__main__':

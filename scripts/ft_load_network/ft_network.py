@@ -12,7 +12,7 @@ from geometry_msgs.msg import Wrench
 
 # Import PyTorch Lightning NN Model
 from train_network import FeedforwardModel, LSTMModel, CNNModel, MultiClassifierModel, BinaryClassifierModel
-from process_dataset import PACKAGE_PATH, SEQUENCE_LENGTH, LOAD_VELOCITIES, MODEL_TYPE, STRIDE, BALANCE_STRATEGY
+from process_dataset import PACKAGE_PATH, SEQUENCE_LENGTH, LOAD_VELOCITIES, MODEL_TYPE, STRIDE, BALANCE_STRATEGY, DISTURBANCES
 from pl_utils import torch, load_hyperparameters, load_model, get_config_name
 
 # Output Length
@@ -49,7 +49,7 @@ class GripperControlNode(Node):
 
         # Load Hyperparameters
         model_name, _, model_type, input_size, hidden_size, output_size, sequence_length, num_layers, _ = \
-            load_hyperparameters(f'{PACKAGE_PATH}/model', get_config_name(MODEL_TYPE, SEQUENCE_LENGTH, STRIDE, BALANCE_STRATEGY))
+            load_hyperparameters(f'{PACKAGE_PATH}/model', get_config_name(MODEL_TYPE, SEQUENCE_LENGTH, STRIDE, BALANCE_STRATEGY, DISTURBANCES))
 
         # Load NN Model
         print(colored(f'\nLoading Model: ', 'green'), f'{PACKAGE_PATH}/model/{model_name}.pth\n')

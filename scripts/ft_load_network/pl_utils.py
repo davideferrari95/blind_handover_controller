@@ -95,26 +95,32 @@ def load_hyperparameters(path:str, name:str) -> Tuple[str, str, str, int, List[i
 
     return model_name, config_name, model_type, input_size, hidden_size, output_size, sequence_length, num_layers, learning_rate
 
-def get_dataset_name(sequence_length:int, stride:int, balance_strategy:List[str]) -> str:
+def get_dataset_name(sequence_length:int, stride:int, balance_strategy:List[str], disturbances:bool=False) -> str:
 
     """ Compute Dataset Name """
 
     # Compute Dataset Name
-    return f'dataset_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
+    name =  f'dataset_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
+    if disturbances: name += '_d'
+    return name
 
-def get_config_name(model_type:str, sequence_length:int, stride:int, balance_strategy:List[str]) -> str:
+def get_config_name(model_type:str, sequence_length:int, stride:int, balance_strategy:List[str], disturbances:bool=False) -> str:
 
     """ Compute Config Name """
 
     # Compute Config Name
-    return f'{model_type}_config_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
+    name =  f'{model_type}_config_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
+    if disturbances: name += '_d'
+    return name
 
-def get_model_name(model_type:str, sequence_length:int, stride:int, balance_strategy:List[str]) -> str:
+def get_model_name(model_type:str, sequence_length:int, stride:int, balance_strategy:List[str], disturbances:bool=False) -> str:
 
     """ Compute Model Name """
 
     # Compute Model Name
-    return f'{model_type}_model_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
+    name =  f'{model_type}_model_{sequence_length}_{stride}_{"".join([s[0] for s in balance_strategy])}'
+    if disturbances: name += '_d'
+    return name
 
 class StartTrainingCallback(Callback):
 

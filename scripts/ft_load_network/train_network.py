@@ -9,7 +9,7 @@ from networks import LSTMModel, CNNModel, FeedforwardModel, MultiClassifierModel
 
 # Import Processed Dataset and DataLoader
 from process_dataset import ProcessDataset, PACKAGE_PATH, MODEL_TYPE, BATCH_SIZE, PATIENCE
-from process_dataset import HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, BALANCE_STRATEGY
+from process_dataset import HIDDEN_SIZE, SEQUENCE_LENGTH, STRIDE, OPEN_GRIPPER_LEN, BALANCE_STRATEGY, DISTURBANCES
 
 # Import Callbacks and Utilities
 from pl_utils import save_model, save_hyperparameters, DEVICE, get_model_name, get_config_name
@@ -22,11 +22,11 @@ class TrainingNetwork():
     def __init__(self, batch_size:int=32, model_type:str='MultiClassifier', sequence_length:int=100, stride:int=10, open_gripper_len:int=100, shuffle:bool=True):
 
         # Process Dataset
-        process_dataset = ProcessDataset(batch_size, sequence_length, stride, open_gripper_len, shuffle, BALANCE_STRATEGY)
+        process_dataset = ProcessDataset(batch_size, sequence_length, stride, open_gripper_len, shuffle, BALANCE_STRATEGY, DISTURBANCES)
         class_weights = process_dataset.get_class_weights()
 
         # Model and Config Names
-        self.model_name, config_name = get_model_name(model_type, sequence_length, stride, BALANCE_STRATEGY), get_config_name(model_type, sequence_length, stride, BALANCE_STRATEGY)
+        self.model_name, config_name = get_model_name(model_type, sequence_length, stride, BALANCE_STRATEGY, DISTURBANCES), get_config_name(model_type, sequence_length, stride, BALANCE_STRATEGY, DISTURBANCES)
 
         # Get DataLoaders
         self.train_dataloader, self.test_dataloader, self.val_dataloader = process_dataset.get_dataloaders()
