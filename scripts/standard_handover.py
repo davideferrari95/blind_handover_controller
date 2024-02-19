@@ -235,7 +235,7 @@ class Standard_Handover(Node):
 
         """ Stop Admittance Server Callback """
 
-        print(colored('Admittance Controller Completed\n', 'yellow'))
+        print(colored('Standard Controller Completed\n', 'yellow'))
         self.goal_received, self.start_admittance = False, False
 
         # Stop Robot
@@ -351,7 +351,7 @@ class Standard_Handover(Node):
         self.goal_received, self.start_admittance = False, True
 
         # Start Admittance Controller
-        print(colored('Trajectory Planned - Starting Admittance Controller', 'green'))
+        print(colored('Trajectory Planned - Starting Standard Controller', 'green'))
 
     def spinner(self):
 
