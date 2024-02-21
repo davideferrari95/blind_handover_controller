@@ -8,12 +8,12 @@ from typing import List
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
-from std_msgs.msg import String, Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import String, Float64MultiArray, MultiArrayDimension, Int64
 from ur_rtde_controller.srv import RobotiQGripperControl
 from alexa_conversation.msg import VoiceCommand
 
 # Import Utils
-from object_list import object_list, get_object_pick_positions
+from object_list import object_list, get_object_pick_positions, HOME
 
 class Experiment(Node):
 
@@ -30,7 +30,6 @@ class Experiment(Node):
 
     # Initial Joint Goals - UR5e
     handover_goal = Pose()
-    HOME = [-1.7102339903460901, -1.62247957805776, 1.6913612524615687, -1.6592804394164027, -1.5053008238421839, 3.146353244781494]
 
     def __init__(self, ros_rate:int=500):
 
@@ -42,9 +41,10 @@ class Experiment(Node):
         self.rate = self.create_rate(ros_rate)
 
         # ROS2 Publisher Initialization
-        self.joint_goal_pub     = self.create_publisher(Float64MultiArray, '/handover/joint_goal', 1)
-        self.cartesian_goal_pub = self.create_publisher(Pose, '/handover/cartesian_goal', 1)
-        self.alexa_tts_pub      = self.create_publisher(String, '/alexa/tts', 1)
+        self.joint_goal_pub      = self.create_publisher(Float64MultiArray, '/handover/joint_goal', 1)
+        self.cartesian_goal_pub  = self.create_publisher(Pose, '/handover/cartesian_goal', 1)
+        self.alexa_tts_pub       = self.create_publisher(String, '/alexa/tts', 1)
+        self.trajectory_time_pub = self.create_publisher(Int64, '/handover/set_trajectory_time', 1)
 
         # ROS2 Service Clients Initialization
         self.stop_admittance_client = self.create_client(Trigger, '/handover/stop')
@@ -79,7 +79,7 @@ class Experiment(Node):
 
         # Get Alexa Command
         if data.command is VoiceCommand.GET_OBJECT: self.start_handover = True
-        self.requested_object = data.object if data.object != '' else 'pillars'
+        self.requested_object = data.object if data.object != '' else 'pliers'
 
     def humanHandPoseCallback(self, data:Pose):
 
@@ -223,7 +223,10 @@ class Experiment(Node):
 
         # Go to Object Goal
         self.move_and_wait(object_over, 'Object Over', 5.0, False)
+        # self.trajectory_time_pub.publish(Int64(data=3))
+        # time.sleep(0.5)
         self.move_and_wait(object_pick, 'Object Pick', 5.0, False)
+        # self.trajectory_time_pub.publish(Int64(data=5))
         time.sleep(1)
 
         # Reset FT-Sensor and Close Gripper
@@ -236,9 +239,10 @@ class Experiment(Node):
         self.handover_goal.position.y += -0.15
 
         # Fixed Orientation Goal
-        self.handover_goal.orientation.x = 2.35
-        self.handover_goal.orientation.y = -2.0
-        self.handover_goal.orientation.z = 0.0
+        self.handover_goal.orientation.x = -0.96
+        self.handover_goal.orientation.y = 0.25
+        self.handover_goal.orientation.z = 0.02
+        self.handover_goal.orientation.w = 0.06
 
         # Go to Handover Goal
         self.move_cartesian(self.handover_goal)
@@ -263,7 +267,7 @@ class Experiment(Node):
 
         # Open Gripper and Go to Home
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
-        # self.move_and_wait(self.HOME, 'HOME', 5.0, False)
+        self.move_and_wait(HOME, 'HOME', 5.0, False)
         time.sleep(1)
 
         # Wait for Start Handover

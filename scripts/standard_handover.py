@@ -11,7 +11,7 @@ import rclpy
 from rclpy.node import Node, Parameter
 
 # Import ROS Messages, Services, Actions
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Int64
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, PoseStamped, Wrench, Vector3
@@ -64,6 +64,7 @@ class Standard_Handover(Node):
     # Initialize Class Variables
     goal_received, start_admittance = False, False
     joint_states, ft_sensor_data = JointState(), Wrench()
+    trajectory_time:int = 5
 
     # Initialize Robot and Human Points Variables
     human_point, robot_base = Vector3(), Pose()
@@ -120,7 +121,13 @@ class Standard_Handover(Node):
         print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
         print(colored('    sim:', 'green'),                   f'\t\t\t{self.sim}')
         print(colored('    human_radius:', 'green'),          f'\t\t{human_radius}')
-        print(colored('    robot:', 'green'),                 f'\t\t\t"{robot_parameters["robot"]}"\n')
+        print(colored('    robot:', 'green'),                 f'\t\t\t"{robot_parameters["robot"]}"')
+
+        # Print Admittance Parameters
+        print(colored('\nAdmittance Parameters:', 'yellow'), '\n')
+        print(colored('    admittance_mass:', 'green'),       f'\t\t{self.get_parameter_value("admittance_mass")}')
+        print(colored('    admittance_damping:', 'green'),    f'\t{self.get_parameter_value("admittance_damping")}')
+        print(colored('    admittance_stiffness:', 'green'),  f'\t{self.get_parameter_value("admittance_stiffness")}\n')
 
         # Publishers
         self.joint_velocity_publisher = self.create_publisher(Float64MultiArray, '/ur_rtde/controllers/joint_velocity_controller/command', 1)
@@ -128,10 +135,11 @@ class Standard_Handover(Node):
         self.human_hand_pose_publisher = self.create_publisher(Pose, '/handover/human_hand', 1)
 
         # Subscribers
-        self.joint_state_subscriber    = self.create_subscription(JointState,        '/joint_states',            self.jointStatesCallback, 1)
-        self.ft_sensor_subscriber      = self.create_subscription(Wrench,            '/ur_rtde/ft_sensor',       self.FTSensorCallback, 1)
-        self.cartesian_goal_subscriber = self.create_subscription(Pose,              '/handover/cartesian_goal', self.cartesianGoalCallback, 1)
-        self.joint_goal_subscriber     = self.create_subscription(Float64MultiArray, '/handover/joint_goal',     self.jointGoalCallback, 1)
+        self.joint_state_subscriber     = self.create_subscription(JointState,        '/joint_states',                 self.jointStatesCallback, 1)
+        self.ft_sensor_subscriber       = self.create_subscription(Wrench,            '/ur_rtde/ft_sensor',            self.FTSensorCallback, 1)
+        self.cartesian_goal_subscriber  = self.create_subscription(Pose,              '/handover/cartesian_goal',      self.cartesianGoalCallback, 1)
+        self.joint_goal_subscriber      = self.create_subscription(Float64MultiArray, '/handover/joint_goal',          self.jointGoalCallback, 1)
+        self.trajectory_time_subscriber = self.create_subscription(Int64,           '/handover/set_trajectory_time', self.setTrajectoryTimeCallback, 1)
 
         # PFL Subscribers
         self.human_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_mocap/right_wrist/pose', self.humanPointCallback, 1)
@@ -181,7 +189,8 @@ class Standard_Handover(Node):
         """ Cartesian Goal Callback """
 
         # Get Joint Goal from Cartesian Goal
-        ik = self.robot_toolbox.InverseKinematic(data, actual_pose=self.joint_states.position)
+        # ik = self.robot_toolbox.InverseKinematic(data, actual_pose=self.joint_states.position)
+        ik = self.move_robot.IK(data, near_pose=self.joint_states.position)
 
         # If IK is not None
         if ik is not None:
@@ -198,7 +207,12 @@ class Standard_Handover(Node):
         self.handover_goal = data.data
         self.goal_received, self.start_admittance = True, False
 
-        # TODO: Add Trajectory Execution Time
+    def setTrajectoryTimeCallback(self, data:Int64):
+
+        """ Set Trajectory Time Callback """
+
+        # Set Trajectory Time
+        self.trajectory_time = data.data
 
     def humanPointCallback(self, msg:PoseStamped):
 
@@ -340,7 +354,7 @@ class Standard_Handover(Node):
 
         # If Goal Received -> Plan Trajectory
         print(colored(f'Goal Received: ', 'yellow'), f'[{handover_goal}] - Planning Trajectory')
-        trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, handover_goal, 5, self.ros_rate)
+        trajectory = self.robot_toolbox.plan_trajectory(self.joint_states.position, handover_goal, self.trajectory_time, self.ros_rate)
 
         # Convert Trajectory to Spline
         self.spline_trajectory = self.robot_toolbox.trajectory2spline(trajectory)
@@ -390,7 +404,7 @@ if __name__ == '__main__':
     rclpy.init()
 
     # Initialize Class
-    standard_handover = Standard_Handover('standard_handover', 500)
+    standard_handover = Standard_Handover('handover_controller', 500)
 
     # Zero FT Sensor
     try: standard_handover.zeroFTSensor()
