@@ -13,9 +13,7 @@ from ur_rtde_controller.srv import RobotiQGripperControl
 from alexa_conversation.msg import VoiceCommand
 
 # Import Utils
-import sys, pathlib
-sys.path.append(f'{str(pathlib.Path(__file__).resolve().parents[1])}')
-from utils.object_list import object_list, get_object_pick_position
+from object_list import object_list, get_object_pick_positions
 
 class Experiment(Node):
 
@@ -83,7 +81,7 @@ class Experiment(Node):
 
         # Get Alexa Command
         if data.command is VoiceCommand.GET_OBJECT: self.start_handover = True
-        self.requested_object = data.object
+        self.requested_object = data.object if data.object != '' else 'pillars'
 
     def humanHandPoseCallback(self, data:Pose):
 
@@ -219,13 +217,14 @@ class Experiment(Node):
 
         """ Handover """
 
-        assert object_name in object_list, f'Invalid Object Name: {object_name}'
+        assert object_name in [obj.name for obj in object_list], f'Invalid Object Name: {object_name}'
 
         # Get Object Goal
-        object_goal = get_object_pick_position(object_name)
+        object_over, object_pick = get_object_pick_positions(object_name)
 
         # Go to Object Goal
-        self.move_and_wait(object_goal, 'Object Goal', 5.0, False)
+        self.move_and_wait(object_over, 'Object Over', 5.0, False)
+        self.move_and_wait(object_pick, 'Object Pick', 5.0, False)
         time.sleep(1)
 
         # Reset FT-Sensor and Close Gripper
@@ -233,8 +232,21 @@ class Experiment(Node):
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_CLOSED)
         time.sleep(1)
 
+        # Compute Handover Goal - Gripper Distance
+        self.handover_goal.position.z += 0.30
+        self.handover_goal.position.y += -0.15
+
+        # Fixed Orientation Goal
+        self.handover_goal.orientation.x = 2.35
+        self.handover_goal.orientation.y = -2.0
+        self.handover_goal.orientation.z = 0.0
+
         # Go to Handover Goal
         self.move_cartesian(self.handover_goal)
+
+        # FIX: Handover Goal - For Testing
+        # handover_goal_test = [-2.48739463487734, -1.3766034108451386, 1.7061370054828089, -1.8849464855589808, -1.588557545338766, 0.5314063429832458]
+        # self.publishJointGoal(handover_goal_test)
 
         # Publish Alexa TTS
         self.publishAlexaTTS(f"I'm handing you the {object_name}")
@@ -252,7 +264,7 @@ class Experiment(Node):
 
         # Open Gripper and Go to Home
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
-        self.move_and_wait(self.HOME, 'HOME', 5.0, False)
+        # self.move_and_wait(self.HOME, 'HOME', 5.0, False)
         time.sleep(1)
 
         # Wait for Start Handover
