@@ -194,7 +194,7 @@ class UR_Toolbox():
         # # Uncomment to stop the browser tab from closing
         # # env.hold()
 
-    def plan_trajectory(self, start:Union[List[float], Pose, SE3], end:Union[List[float], Pose, SE3], duration:float=10.0, sampling_freq:int=500) -> Trajectory:
+    def plan_trajectory(self, start:Union[List[float], Pose, SE3], end:Union[List[float], Pose, SE3], duration:int=10, sampling_freq:int=500) -> Trajectory:
 
         """ Plan Trajectory with Peter Corke Robotics Toolbox """
 
