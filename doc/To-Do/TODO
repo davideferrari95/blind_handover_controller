@@ -37,7 +37,7 @@ Load Transfer - FT Sensor:
 Sensing and Communication:
 
     ✘ Implement the `6IMPOSE` Object Recognition. @cancelled(24-02-16 17:03)
-    - Implement the `Alexa Conversations` or `Gesture Recognition` for the Handover Request.
+    ✔ Implement the `Alexa Conversations` or `Gesture Recognition` for the Handover Request. @done(24-02-21 12:26)
     ✔ Implement the Handover Procedure with the `Automatic Success Detection` and `Release` of the Object. @done(24-02-16 17:03)
 
 Comparative Handover:
