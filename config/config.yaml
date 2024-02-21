@@ -4,13 +4,9 @@ handover_controller:
   ros__parameters:
 
     # Admittance Parameters
-    admittance_mass:      [40.0, 40.0, 40.0, 0.1, 0.1, 0.1]
-    admittance_damping:   [60.0, 60.0, 60.0, 1.0, 1.0, 1.0]
+    admittance_mass:      [4.0, 4.0, 4.0, 0.1, 0.1, 0.1]
+    admittance_damping:   [20.0, 20.0, 20.0, 1.0, 1.0, 1.0]
     admittance_stiffness: [20.0, 20.0, 20.0, 1.0, 1.0, 1.0]
-    # admittance_stiffness: [4.0, 4.0, 4.0, 0.0, 0.0, 0.0]
-    # admittance_mass:      [4.0, 4.0, 4.0, 0.1, 0.1, 0.1]
-    # admittance_damping:   [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
-    # admittance_stiffness: [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
 
     # FT-Sensor Dead Zone Parameters
     force_dead_zone: 4.0
