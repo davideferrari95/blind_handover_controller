@@ -161,7 +161,7 @@ class GripperControlNode(Node):
 
                 print(colored(f'Open Gripper', 'green'))
                 self.network_output_publisher.publish(Bool(data=True))
-                break
+                # break
 
 if __name__ == '__main__':
 
