@@ -86,9 +86,9 @@ Force-Load Transfer User Study - Experiment Details:
 
     Robust Handover:
 
-        ☐ Collect some data where the robot takes some hits -> robust network
-        ☐ Add the new data to the training set and re-train the network
-        ☐ Use longer sequences to train the network (> 1000 samples -> 2 second)
+        ✔ Collect some data where the robot takes some hits -> robust network @done(24-02-21 17:44)
+        ✔ Add the new data to the training set and re-train the network @done(24-02-21 17:44)
+        ✔ Use longer sequences to train the network (= 500 samples -> 0.5 seconds) @done(24-02-21 17:44)
 
 `------------------------------------------------------------------------------------------------------------------------------------------------------`
 
