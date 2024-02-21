@@ -182,7 +182,8 @@ class Handover_Controller(Node):
         """ Cartesian Goal Callback """
 
         # Get Joint Goal from Cartesian Goal
-        ik = self.robot_toolbox.InverseKinematic(data, actual_pose=self.joint_states.position)
+        # ik = self.robot_toolbox.InverseKinematic(data, actual_pose=self.joint_states.position)
+        ik = self.move_robot.IK(data, near_pose=self.joint_states.position)
 
         # If IK is not None
         if ik is not None:
