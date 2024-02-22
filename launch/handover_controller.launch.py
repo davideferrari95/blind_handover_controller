@@ -12,6 +12,7 @@ def create_handover_controller_node(context):
     handover_controller_parameters = {
         'use_feedback_velocity': LaunchConfiguration('use_feedback_velocity'),
         'admittance_weight': LaunchConfiguration('admittance_weight'),
+        'use_admittance': LaunchConfiguration('use_admittance'),
         'complete_debug': LaunchConfiguration('complete_debug'),
         'debug': LaunchConfiguration('debug'),
         'sim': LaunchConfiguration('sim'),
@@ -29,7 +30,7 @@ def create_handover_controller_node(context):
 
     # Python Node + Parameters + YAML Config File
     handover_controller = Node(
-        package='handover_controller', executable='handover_controller.py', #name='handover_controller',
+        package='handover_controller', executable='handover_controller.py',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
         parameters=[handover_controller_parameters, config, robot_config],
     )
@@ -44,6 +45,7 @@ def generate_launch_description():
     # Arguments
     use_feedback_velocity_arg = DeclareLaunchArgument('use_feedback_velocity', default_value='false')
     admittance_weight_arg = DeclareLaunchArgument('admittance_weight', default_value='0.2')
+    use_admittance_arg = DeclareLaunchArgument('use_admittance', default_value='true')
     complete_debug_arg = DeclareLaunchArgument('complete_debug', default_value='false')
     human_radius_arg = DeclareLaunchArgument('human_radius', default_value='0.2')
     debug_arg = DeclareLaunchArgument('debug', default_value='false')
@@ -51,6 +53,7 @@ def generate_launch_description():
     sim_arg = DeclareLaunchArgument('sim', default_value='false')
     launch_description.add_action(use_feedback_velocity_arg)
     launch_description.add_action(admittance_weight_arg)
+    launch_description.add_action(use_admittance_arg)
     launch_description.add_action(complete_debug_arg)
     launch_description.add_action(human_radius_arg)
     launch_description.add_action(debug_arg)

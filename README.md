@@ -91,14 +91,14 @@ This package contains an Handover Controller with Admittance and Power and Force
 
 - Launch main `experiment`:
 
-        ros2 launch handover_controller handover_controller.launch.py
         ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
+        ros2 launch handover_controller handover_controller.launch.py 
         ros2 launch handover_controller experiment.launch.py
 
 - Launch comparative `standard_experiment`:
 
-        ros2 launch handover_controller standard_handover.launch.py
         ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
+        ros2 launch handover_controller handover_controller.launch.py use_admittance:=False
         ros2 launch handover_controller standard_experiment.launch.py
 
 #### Training FT-Load Neural Network
