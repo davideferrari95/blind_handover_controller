@@ -299,7 +299,11 @@ class SafetyController():
         # b = b + [q_ddot_lim[i]/self.ros_rate - old_joint_velocity[i] for i in range(len(q_ddot_lim))]
 
         # Optimization Problem (Bounds: 0 <= alpha <= 1)
-        result = linprog(c, A_ub=A, b_ub=b, bounds=[(0.0, 1.0)])
+        try: result = linprog(c, A_ub=A, b_ub=b, bounds=[(0.0, 1.0)])
+        except ValueError:
+
+            print(A)
+            return 1.0
 
         # Return Optimal Scaling Factor
         return result.x.item()
