@@ -45,6 +45,7 @@ class Experiment(Node):
         self.cartesian_goal_pub  = self.create_publisher(Pose, '/handover/cartesian_goal', 1)
         self.alexa_tts_pub       = self.create_publisher(String, '/alexa/tts', 1)
         self.trajectory_time_pub = self.create_publisher(Int64, '/handover/set_trajectory_time', 1)
+        self.track_hand_pub      = self.create_publisher(Bool, '/handover/track_hand', 1)
 
         # ROS2 Service Clients Initialization
         self.stop_admittance_client = self.create_client(Trigger, '/handover/stop')
@@ -236,8 +237,9 @@ class Experiment(Node):
         time.sleep(1)
 
         # Compute Handover Goal - Gripper Distance
-        self.handover_goal.position.z += 0.30
         self.handover_goal.position.y += -0.15
+        self.handover_goal.position.y += -0.15
+        self.handover_goal.position.z += 0.20
 
         # Fixed Orientation Goal
         self.handover_goal.orientation.x = -0.96
@@ -254,6 +256,10 @@ class Experiment(Node):
 
         # Publish Alexa TTS
         self.publishAlexaTTS(f"I'm handing you the {object_name}")
+        time.sleep(2)
+
+        # Publish Hand Tracking
+        self.track_hand_pub(Bool(data=True))
 
         # Wait for Network to Open Gripper
         self.wait_for_network()
@@ -285,6 +291,13 @@ class Experiment(Node):
         print('\nStopping Handover\n')
         self.stopHandover()
 
+        # Initialize Flags
+        self.start_handover = False
+        self.requested_object = None
+
+        # Sleep
+        time.sleep(2)
+
 if __name__ == '__main__':
 
     # ROS2 Initialization
@@ -293,5 +306,7 @@ if __name__ == '__main__':
     # Create Node
     node = Experiment(500)
 
-    # Run Node
-    node.main()
+    while rclpy.ok():
+
+        # Run Node
+        node.main()
