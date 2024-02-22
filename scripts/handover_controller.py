@@ -2,7 +2,7 @@
 
 import numpy as np
 from math import pi
-from typing import List, Any
+from typing import List, Any, Optional
 from termcolor import colored
 import threading, signal, time
 
@@ -11,7 +11,7 @@ import rclpy
 from rclpy.node import Node, Parameter
 
 # Import ROS Messages, Services, Actions
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Int64
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Int64, Bool
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, PoseStamped, Wrench, Vector3
@@ -62,7 +62,7 @@ class Handover_Controller(Node):
     """ Handover Controller Class """
 
     # Initialize Class Variables
-    goal_received, start_admittance = False, False
+    goal_received, start_admittance, stop_admittance, track_hand = False, False, False, False
     joint_states, ft_sensor_data = JointState(), Wrench()
     trajectory_time:int = 5
 
@@ -87,7 +87,7 @@ class Handover_Controller(Node):
         self.declare_parameters('', [('admittance_mass', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_damping', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00]), ('admittance_stiffness', [1.00, 1.00, 1.00, 1.00, 1.00, 1.00])])
         self.declare_parameters('', [('maximum_velocity', [1.05, 1.05, 1.57, 1.57, 1.57, 1.57]), ('maximum_acceleration', [0.57, 0.57, 0.57, 0.57, 0.57, 0.57])])
         self.declare_parameters('', [('admittance_weight', 0.1), ('force_dead_zone', 4.0), ('torque_dead_zone', 1.0), ('human_radius', 0.2)])
-        self.declare_parameters('', [('use_feedback_velocity', False), ('sim', False), ('complete_debug', False), ('debug', False)])
+        self.declare_parameters('', [('use_feedback_velocity', False), ('sim', False), ('complete_debug', False), ('debug', False), ('use_admittance', True)])
 
         # Declare Robot Parameters
         self.declare_parameters('', [('robot', 'ur10e'), ('payload', 12.5), ('reach', 1.30), ('tcp_speed', 1.0)]) # kg, m, m/s
@@ -102,7 +102,7 @@ class Handover_Controller(Node):
         self.force_dead_zone, self.torque_dead_zone = self.get_parameter_value('force_dead_zone'), self.get_parameter_value('torque_dead_zone')
         self.sim, use_feedback_velocity = self.get_parameter_value('sim'), self.get_parameter_value('use_feedback_velocity')
         self.complete_debug, self.debug = self.get_parameter_value('complete_debug'), self.get_parameter_value('debug')
-        human_radius = self.get_parameter_value('human_radius')
+        self.use_admittance, human_radius = self.get_parameter_value('use_admittance'), self.get_parameter_value('human_radius')
 
         # Read Robot Parameters
         robot_parameters = {param_name : self.get_parameter_value(param_name) for param_name in
@@ -117,6 +117,7 @@ class Handover_Controller(Node):
         # Print Parameters
         print(colored('\nPFL Controller Parameters:', 'yellow'), '\n')
         print(colored('    use_feedback_velocity:', 'green'), f'\t{use_feedback_velocity}')
+        print(colored('    use_admittance:', 'green'),        f'\t\t{self.use_admittance}')
         print(colored('    complete_debug:', 'green'),        f'\t\t{self.complete_debug}')
         print(colored('    debug:', 'green'),                 f'\t\t\t{self.debug}')
         print(colored('    sim:', 'green'),                   f'\t\t\t{self.sim}')
@@ -139,7 +140,8 @@ class Handover_Controller(Node):
         self.ft_sensor_subscriber       = self.create_subscription(Wrench,            '/ur_rtde/ft_sensor',            self.FTSensorCallback, 1)
         self.cartesian_goal_subscriber  = self.create_subscription(Pose,              '/handover/cartesian_goal',      self.cartesianGoalCallback, 1)
         self.joint_goal_subscriber      = self.create_subscription(Float64MultiArray, '/handover/joint_goal',          self.jointGoalCallback, 1)
-        self.trajectory_time_subscriber = self.create_subscription(Int64,           '/handover/set_trajectory_time', self.setTrajectoryTimeCallback, 1)
+        self.track_hand_subscriber      = self.create_subscription(Bool,              '/handover/track_hand',          self.trackHandCallback, 1)
+        self.trajectory_time_subscriber = self.create_subscription(Int64,             '/handover/set_trajectory_time', self.setTrajectoryTimeCallback, 1)
 
         # PFL Subscribers
         self.human_pose_subscriber = self.create_subscription(PoseStamped, '/vrpn_mocap/right_wrist/pose', self.humanPointCallback, 1)
@@ -160,7 +162,6 @@ class Handover_Controller(Node):
 
         # Initialize PFL Controller
         self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.ros_rate, self.complete_debug, self.debug)
-        # self.safety_controller = SafetyController(self.robot_toolbox, robot_parameters, human_radius, self.ros_rate, True, True)
 
         # Controller Initialized
         print(colored('Handover Controller Initialized\n', 'yellow'))
@@ -184,6 +185,9 @@ class Handover_Controller(Node):
         self.ft_sensor_data.torque.x = data.torque.x if abs(data.torque.x) > abs(self.torque_dead_zone) else 0.0
         self.ft_sensor_data.torque.y = data.torque.y if abs(data.torque.y) > abs(self.torque_dead_zone) else 0.0
         self.ft_sensor_data.torque.z = data.torque.z if abs(data.torque.z) > abs(self.torque_dead_zone) else 0.0
+
+        # If !use_admittance -> Set FT Sensor Data = 0
+        if not self.use_admittance: self.ft_sensor_data = Wrench()
 
     def cartesianGoalCallback(self, data:Pose):
 
@@ -215,13 +219,20 @@ class Handover_Controller(Node):
         # Set Trajectory Time
         self.trajectory_time = data.data
 
+    def trackHandCallback(self, data:Bool):
+
+        """ Track Hand Callback """
+
+        # Set Track Hand Flag
+        self.track_hand = data.data
+
     def humanPointCallback(self, msg:PoseStamped):
 
         """ Human Pose Callback (PH) """
 
         # Transform Human Pose from World Frame to Robot Base Frame (T2 in T1​​ = T1^-1 ​@ T2)
-        human_pos = np.linalg.inv(self.robot_toolbox.pose2matrix(self.robot_base).A) @ self.robot_toolbox.pose2matrix(msg.pose).A
-        human_pos = self.robot_toolbox.matrix2pose(human_pos)
+        self.human_pos = np.linalg.inv(self.robot_toolbox.pose2matrix(self.robot_base).A) @ self.robot_toolbox.pose2matrix(msg.pose).A
+        self.human_pos = self.robot_toolbox.matrix2pose(self.human_pos)
 
         # Compute Human Velocity - Update Human Timer
         # self.human_vel.x, self.human_vel.y, self.human_vel.z = (human_pos.position.x - self.human_point.x) / (time.time() - self.human_timer), \
@@ -234,10 +245,10 @@ class Handover_Controller(Node):
         self.human_vel.x, self.human_vel.y, self.human_vel.z = 0.0, 0.0, 0.0
 
         # Update Human Vector3 Message
-        self.human_point.x, self.human_point.y, self.human_point.z = human_pos.position.x, human_pos.position.y, human_pos.position.z
+        self.human_point.x, self.human_point.y, self.human_point.z = self.human_pos.position.x, self.human_pos.position.y, self.human_pos.position.z
 
         # Publish Human Hand Pose
-        self.human_hand_pose_publisher.publish(human_pos)
+        self.human_hand_pose_publisher.publish(self.human_pos)
 
     def robotPointCallback(self, msg:PoseStamped):
 
@@ -252,6 +263,7 @@ class Handover_Controller(Node):
 
         print(colored('Admittance Controller Completed\n', 'yellow'))
         self.goal_received, self.start_admittance = False, False
+        self.stop_admittance = True
 
         # Stop Robot
         self.old_joint_velocity = [0.0] * 6
@@ -346,6 +358,27 @@ class Handover_Controller(Node):
         elif param.type_ == Parameter.Type.STRING_ARRAY:  return self.get_parameter(parameter_name).get_parameter_value().string_array_value
         else: raise ValueError(f'Parameter Type Not Supported: {param.type_}')
 
+    def hand_pose(self) -> Optional[Pose]:
+
+        # Return None if not Track Hand Pose
+        if not self.track_hand: return None
+
+        # Compute Hand Position
+        hand_pose = self.human_pos
+
+        # Add Gripper Distance
+        hand_pose.position.y += -0.15
+        hand_pose.position.y += -0.15
+        hand_pose.position.z += 0.20
+
+        # Fixed Orientation Goal
+        hand_pose.orientation.x = -0.96
+        hand_pose.orientation.y = 0.25
+        hand_pose.orientation.z = 0.02
+        hand_pose.orientation.w = 0.06
+
+        return hand_pose
+
     def plan_trajectory(self, handover_goal:List[float]):
 
         """ Plan Trajectory """
@@ -363,7 +396,7 @@ class Handover_Controller(Node):
         # Initialize Admittance Controller Variables
         self.old_joint_velocity = np.array(self.joint_states.velocity)
         self.scaling_factor, self.current_time = 0.0, 0.0
-        self.goal_received, self.start_admittance = False, True
+        self.goal_received, self.start_admittance, self.stop_admittance = False, True, False
 
         # Start Admittance Controller
         print(colored('Trajectory Planned - Starting Admittance Controller', 'green'))
@@ -379,7 +412,7 @@ class Handover_Controller(Node):
         while (rclpy.ok() and self.start_admittance):
 
             # Get Next Cartesian Goal | Increment Counter only if i < last trajectory point
-            cartesian_goal, self.current_time = self.robot_toolbox.get_cartesian_goal(self.spline_trajectory, self.current_time, self.scaling_factor, self.ros_rate)
+            cartesian_goal, self.current_time = self.robot_toolbox.get_cartesian_goal(self.spline_trajectory, self.current_time, self.scaling_factor, self.ros_rate, override_pose=self.hand_pose())
 
             # Compute Admittance Velocity
             desired_joint_velocity = self.admittance_controller.compute_admittance_velocity(self.joint_states, self.ft_sensor_data, self.old_joint_velocity, *cartesian_goal)
@@ -394,7 +427,7 @@ class Handover_Controller(Node):
             self.rate.sleep()
 
         # Publish Zero Velocity
-        self.publishRobotVelocity([0.0] * 6)
+        if self.stop_admittance: self.publishRobotVelocity([0.0] * 6)
 
         # Sleep to ROS Rate
         self.rate.sleep()

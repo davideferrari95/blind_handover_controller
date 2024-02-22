@@ -275,7 +275,7 @@ class UR_Toolbox():
 
         return cartesian_positions, np.array(cartesian_velocities), np.array(cartesian_accelerations)
 
-    def get_cartesian_goal(self, splines:Tuple[CubicSpline, CubicSpline, CubicSpline], current_time:float=0.0, scaling_factor:float=1.0, rate:int=500) -> Tuple[List[SE3], np.ndarray, np.ndarray]:
+    def get_cartesian_goal(self, splines:Tuple[CubicSpline, CubicSpline, CubicSpline], current_time:float=0.0, scaling_factor:float=1.0, rate:int=500, override_pose:Optional[Pose]=None) -> Tuple[List[SE3], np.ndarray, np.ndarray]:
 
         """ Convert Joint Trajectory Spline Point to Cartesian Trajectory Point """
 
@@ -289,7 +289,12 @@ class UR_Toolbox():
         q, q_dot, q_ddot = splines[0](time), splines[1](time), splines[2](time)
 
         # Convert Joint to Cartesian Position, Velocity, Acceleration | x = ForwardKinematic(q) | x_dot = Jacobian(q) * q_dot | x_ddot = Jacobian(q) * q_ddot + JacobianDot(q, q_dot) * q_dot
-        return (self.ForwardKinematic(q), np.array(self.Jacobian(q) @ q_dot), np.array(self.Jacobian(q) @ q_ddot + self.JacobianDot(q, q_dot) @ q_dot)), time
+        x, x_dot, x_ddot = self.ForwardKinematic(q), np.array(self.Jacobian(q) @ q_dot), np.array(self.Jacobian(q) @ q_ddot + self.JacobianDot(q, q_dot) @ q_dot)
+
+        # Override Pose if time >= last_spline_time
+        if override_pose is not None and type(override_pose) is Pose and time >= splines[0].x[-1]: x = self.pose2matrix(override_pose)
+
+        return (x, x_dot, x_ddot), time
 
     def trajectory2spline(self, joint_trajectory:Trajectory) -> Tuple[CubicSpline, CubicSpline, CubicSpline]:
 
