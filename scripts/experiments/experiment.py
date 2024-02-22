@@ -3,11 +3,12 @@
 import rclpy, time
 from rclpy.node import Node
 from typing import List
+from termcolor import colored
 
 # Messages & Services
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Wrench
 from std_msgs.msg import Bool, String, Float64MultiArray, MultiArrayDimension, Int64
 from ur_rtde_controller.srv import RobotiQGripperControl
 from alexa_conversation.msg import VoiceCommand
@@ -20,7 +21,7 @@ class Experiment(Node):
     """ FT-Sensor Experiment Node """
 
     # Initial Joint States Data
-    joint_states = JointState()
+    joint_states, ft_sensor_data = JointState(), Wrench()
     joint_states.name = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
     joint_states.position, joint_states.velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -40,6 +41,13 @@ class Experiment(Node):
         self.ros_rate = ros_rate
         self.rate = self.create_rate(ros_rate)
 
+        # ROS2 Parameters
+        self.declare_parameter('use_network', True)
+        self.use_network = self.get_parameter('use_network').get_parameter_value().bool_value
+
+        # Print Parameters
+        print(colored('\nUse Network:', 'green'), f'\t{self.use_network}\n')
+
         # ROS2 Publisher Initialization
         self.joint_goal_pub      = self.create_publisher(Float64MultiArray, '/handover/joint_goal', 1)
         self.cartesian_goal_pub  = self.create_publisher(Pose, '/handover/cartesian_goal', 1)
@@ -55,6 +63,7 @@ class Experiment(Node):
         # ROS2 Subscriber Initialization
         self.alexa_subscriber           = self.create_subscription(VoiceCommand, '/alexa_conversation/voice_command', self.alexaCallback, 1)
         self.joint_state_subscriber     = self.create_subscription(JointState, '/joint_states', self.jointStatesCallback, 1)
+        self.ft_sensor_subscriber       = self.create_subscription(Wrench,'/ur_rtde/ft_sensor', self.FTSensorCallback, 1)
         self.network_output_subscriber  = self.create_subscription(Bool, '/ft_network/open_gripper', self.networkCallback, 1)
         self.human_hand_pose_subscriber = self.create_subscription(Pose, '/handover/human_hand', self.humanHandPoseCallback, 1)
 
@@ -66,6 +75,13 @@ class Experiment(Node):
 
         # Get Joint States
         self.joint_states = data
+
+    def FTSensorCallback(self, data:Wrench):
+
+        """ FT Sensor Callback """
+
+        # Get FT Sensor Data
+        self.ft_sensor_data = data
 
     def networkCallback(self, data:Bool):
 
@@ -214,6 +230,25 @@ class Experiment(Node):
         # Network Opened Gripper
         self.get_logger().info('Network Opened Gripper\n')
 
+    def wait_for_ft_load(self):
+
+        """ Wait for FT-Load Threshold Output """
+
+        # Wait to Open Gripper
+        while True:
+
+            # Spin Once
+            rclpy.spin_once(self, timeout_sec=0.5/float(self.ros_rate))
+
+            # Check FT-Load Threshold -> Break
+            if self.ft_sensor_data.force.z > 10.0: break
+
+            # Log
+            self.get_logger().info('Waiting FT-Load Threshold to Open Gripper', throttle_duration_sec=5.0, skip_first=False)
+
+        # Network Opened Gripper
+        self.get_logger().info('FT-Load Threshold Opened Gripper\n')
+
     def handover(self, object_name:str):
 
         """ Handover """
@@ -225,10 +260,7 @@ class Experiment(Node):
 
         # Go to Object Goal
         self.move_and_wait(object_over, 'Object Over', 5.0, False)
-        # self.trajectory_time_pub.publish(Int64(data=3))
-        # time.sleep(0.5)
         self.move_and_wait(object_pick, 'Object Pick', 5.0, False)
-        # self.trajectory_time_pub.publish(Int64(data=5))
         time.sleep(1)
 
         # Reset FT-Sensor and Close Gripper
@@ -261,8 +293,9 @@ class Experiment(Node):
         # Publish Hand Tracking
         self.track_hand_pub(Bool(data=True))
 
-        # Wait for Network to Open Gripper
-        self.wait_for_network()
+        # Wait for Network or FT-Load Threshold to Open Gripper
+        if self.use_network: self.wait_for_network()
+        else: self.wait_for_ft_load()
 
         # Open Gripper
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)

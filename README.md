@@ -1,6 +1,6 @@
 # Handover Controller
 
-This package contains an Handover Controller with Admittance and Power and Force Limit Controllers for the UR10e Manipulator in ROS 2.
+This package contains a Handover Controller with Admittance and Power and Force Limit Controllers for the UR10e Manipulator in ROS 2.
 
 ## Requirements
 
@@ -99,7 +99,7 @@ This package contains an Handover Controller with Admittance and Power and Force
 
         ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
         ros2 launch handover_controller handover_controller.launch.py use_admittance:=False
-        ros2 launch handover_controller standard_experiment.launch.py
+        ros2 launch handover_controller experiment.launch.py use_network:=False
 
 #### Training FT-Load Neural Network
 
