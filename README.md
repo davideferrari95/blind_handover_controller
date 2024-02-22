@@ -45,7 +45,7 @@ This package contains a Handover Controller with Admittance and Power and Force 
   - `compute_robot_name_jacobian.cpp`
   - `compute_robot_name_jacobian_dot_dq.cpp`
 
-- Use https://github.com/ARSControl/robot_kinematic to generate the Robot Kinematic Source Files (Little Manual Edit is Needed).
+- Use <https://github.com/ARSControl/robot_kinematic> to generate the Robot Kinematic Source Files (Little Manual Edit is Needed).
 
 - Edit the `src/tasks.py` build file adding the new source and destination path.
 
