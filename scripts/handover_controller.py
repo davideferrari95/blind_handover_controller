@@ -211,6 +211,7 @@ class Handover_Controller(Node):
         # Get Joint Handover Goal
         self.handover_goal = data.data
         self.goal_received, self.start_admittance = True, False
+        self.track_hand = False
 
     def setTrajectoryTimeCallback(self, data:Int64):
 
@@ -231,8 +232,8 @@ class Handover_Controller(Node):
         """ Human Pose Callback (PH) """
 
         # Transform Human Pose from World Frame to Robot Base Frame (T2 in T1​​ = T1^-1 ​@ T2)
-        self.human_pos = np.linalg.inv(self.robot_toolbox.pose2matrix(self.robot_base).A) @ self.robot_toolbox.pose2matrix(msg.pose).A
-        self.human_pos = self.robot_toolbox.matrix2pose(self.human_pos)
+        human_pos = np.linalg.inv(self.robot_toolbox.pose2matrix(self.robot_base).A) @ self.robot_toolbox.pose2matrix(msg.pose).A
+        self.human_pos = self.robot_toolbox.matrix2pose(human_pos)
 
         # Compute Human Velocity - Update Human Timer
         # self.human_vel.x, self.human_vel.y, self.human_vel.z = (human_pos.position.x - self.human_point.x) / (time.time() - self.human_timer), \
@@ -246,6 +247,7 @@ class Handover_Controller(Node):
 
         # Update Human Vector3 Message
         self.human_point.x, self.human_point.y, self.human_point.z = self.human_pos.position.x, self.human_pos.position.y, self.human_pos.position.z
+        # print(colored(f'Human Hand Pose: ', 'yellow'), f'[{self.human_point.x:.2f}, {self.human_point.y:.2f}, {self.human_point.z:.2f}]')
 
         # Publish Human Hand Pose
         self.human_hand_pose_publisher.publish(self.human_pos)
@@ -278,7 +280,13 @@ class Handover_Controller(Node):
         """ Call Zero FT-Sensor Service """
 
         # Wait For Service
-        self.zero_ft_sensor_client.wait_for_service(timeout_sec=1.0)
+        if not self.zero_ft_sensor_client.wait_for_service(timeout_sec=0.1):
+
+            # Print Error
+            handover_controller.get_logger().error('Zero FT Sensor Service Not Available')
+
+            # Return False
+            return False
 
         # Call Service - Asynchronous
         result:Trigger.Response = self.zero_ft_sensor_client.call(Trigger.Request())
@@ -364,11 +372,20 @@ class Handover_Controller(Node):
         if not self.track_hand: return None
 
         # Compute Hand Position
-        hand_pose = self.human_pos
+        transformation_wrist = self.robot_toolbox.pose2matrix(self.human_pos).A
 
-        # Add Gripper Distance
-        hand_pose.position.y += -0.15
-        hand_pose.position.y += -0.15
+        # Add Gripper Distance -> Suppose that the z is aligned with the arm, and center hand 10 cm
+        transformation_hand = np.eye(4)
+        transformation_hand[0:3,3] = [0.0, 0.0, 0.0]
+
+        # Compute Transformation Matrix
+        hand_pose = self.robot_toolbox.matrix2pose(transformation_wrist @ transformation_hand)
+
+        # TODO: Compute Hand Orientation
+
+        # Compute Handover Goal - Gripper Distance
+        hand_pose.position.x += -0.10
+        hand_pose.position.y += -0.25
         hand_pose.position.z += 0.20
 
         # Fixed Orientation Goal
@@ -441,8 +458,7 @@ if __name__ == '__main__':
     handover_controller = Handover_Controller('handover_controller', 500)
 
     # Zero FT Sensor
-    try: handover_controller.zeroFTSensor()
-    except: handover_controller.get_logger().error('Zero FT Sensor Service Not Available')
+    handover_controller.zeroFTSensor()
 
     # Register Signal Handler (CTRL+C)
     signal.signal(signal.SIGINT, signal_handler)
