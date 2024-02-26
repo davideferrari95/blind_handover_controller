@@ -136,7 +136,7 @@ class Experiment(Node):
         """ Call Stop Handover Service """
 
         # Wait For Service
-        if self.stop_admittance_client.wait_for_service(timeout_sec=1.0):
+        if self.stop_admittance_client.wait_for_service(timeout_sec=0.2):
 
             # Call Service - Asynchronous
             future = self.stop_admittance_client.call_async(Trigger.Request())
@@ -199,6 +199,9 @@ class Experiment(Node):
         # Publish Joint Goal
         self.publishJointGoal(joint_goal)
 
+        # Stop Hand Tracking
+        if goal_name == 'HOME': self.track_hand_pub.publish(Bool(data=False))
+
         # Wait for Goal to be Reached
         while not self.goal_reached(joint_goal): self.get_logger().info(f'Moving to {goal_name}', throttle_duration_sec=throttle_duration_sec, skip_first=skip_first)
         self.get_logger().info(f'{goal_name} Reached\n')
@@ -255,6 +258,10 @@ class Experiment(Node):
 
         assert object_name in [obj.name for obj in object_list], f'Invalid Object Name: {object_name}'
 
+        # Reset FT-Sensor
+        self.zeroFTSensor()
+        self.publishAlexaTTS(f"Sure, I'll get the {self.requested_object} for you.")
+
         # Get Object Goal
         object_over, object_pick = get_object_pick_positions(object_name)
 
@@ -263,14 +270,13 @@ class Experiment(Node):
         self.move_and_wait(object_pick, 'Object Pick', 5.0, False)
         time.sleep(1)
 
-        # Reset FT-Sensor and Close Gripper
-        self.zeroFTSensor()
+        # Close Gripper
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_CLOSED)
         time.sleep(1)
 
         # Compute Handover Goal - Gripper Distance
-        self.handover_goal.position.y += -0.15
-        self.handover_goal.position.y += -0.15
+        self.handover_goal.position.x += -0.10
+        self.handover_goal.position.y += -0.25
         self.handover_goal.position.z += 0.20
 
         # Fixed Orientation Goal
@@ -281,6 +287,7 @@ class Experiment(Node):
 
         # Go to Handover Goal
         self.move_cartesian(self.handover_goal)
+        time.sleep(3)
 
         # FIX: Handover Goal - For Testing
         # handover_goal_test = [-2.48739463487734, -1.3766034108451386, 1.7061370054828089, -1.8849464855589808, -1.588557545338766, 0.5314063429832458]
@@ -288,10 +295,9 @@ class Experiment(Node):
 
         # Publish Alexa TTS
         self.publishAlexaTTS(f"I'm handing you the {object_name}")
-        time.sleep(2)
 
         # Publish Hand Tracking
-        self.track_hand_pub(Bool(data=True))
+        self.track_hand_pub.publish(Bool(data=True))
 
         # Wait for Network or FT-Load Threshold to Open Gripper
         if self.use_network: self.wait_for_network()
