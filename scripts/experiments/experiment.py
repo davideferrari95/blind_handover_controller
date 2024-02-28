@@ -15,6 +15,7 @@ from alexa_conversation.msg import VoiceCommand
 
 # Import Utils
 from object_list import object_list, get_object_pick_positions, HOME
+TEST = False
 
 class Experiment(Node):
 
@@ -285,19 +286,24 @@ class Experiment(Node):
         self.handover_goal.orientation.z = 0.02
         self.handover_goal.orientation.w = 0.06
 
-        # Go to Handover Goal
-        self.move_cartesian(self.handover_goal)
-        time.sleep(3)
 
-        # FIX: Handover Goal - For Testing
-        # handover_goal_test = [-2.48739463487734, -1.3766034108451386, 1.7061370054828089, -1.8849464855589808, -1.588557545338766, 0.5314063429832458]
-        # self.publishJointGoal(handover_goal_test)
+        if TEST:
+
+            # Fixed Handover Goal - For Testing
+            handover_goal_test = [-2.48739463487734, -1.3766034108451386, 1.7061370054828089, -1.8849464855589808, -1.588557545338766, 0.5314063429832458]
+            self.publishJointGoal(handover_goal_test)
+
+        else:
+
+            # Go to Handover Goal
+            self.move_cartesian(self.handover_goal)
+            time.sleep(3)
 
         # Publish Alexa TTS
         self.publishAlexaTTS(f"I'm handing you the {object_name}")
 
         # Publish Hand Tracking
-        self.track_hand_pub.publish(Bool(data=True))
+        if not TEST: self.track_hand_pub.publish(Bool(data=True))
 
         # Wait for Network or FT-Load Threshold to Open Gripper
         if self.use_network: self.wait_for_network()
@@ -313,7 +319,7 @@ class Experiment(Node):
 
         # Open Gripper and Go to Home
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
-        self.move_and_wait(HOME, 'HOME', 5.0, False)
+        if not TEST: self.move_and_wait(HOME, 'HOME', 5.0, False)
         time.sleep(1)
 
         # Wait for Start Handover
