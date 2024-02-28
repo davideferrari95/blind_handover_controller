@@ -302,8 +302,9 @@ class SafetyController():
         try: result = linprog(c, A_ub=A, b_ub=b, bounds=[(0.0, 1.0)])
         except ValueError:
 
-            print(A)
-            return 1.0
+            print(f'\nDesired Joint Velocity: ', desired_joint_velocity, '\n')
+            print(f'\nA: ', A, '\n')
+            return 0.0
 
         # Return Optimal Scaling Factor
         return result.x.item()

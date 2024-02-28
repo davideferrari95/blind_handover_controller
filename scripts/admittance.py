@@ -86,6 +86,12 @@ class AdmittanceController():
         # Compute Joint Velocity (q_dot = J^-1 * new_x_dot)
         q_dot: np.ndarray = np.linalg.inv(J) @ new_x_dot
 
+        if np.isnan(q_dot).any():
+
+            # Check for NAN Values
+            print(colored('NAN Desired Velocities: ', 'red'), q_dot)
+            return old_joint_velocity
+
         return q_dot
 
     def get_external_forces(self, external_forces:Wrench) -> np.ndarray:
