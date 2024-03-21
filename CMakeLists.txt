@@ -31,10 +31,6 @@ ament_python_install_package(scripts/utils)
 # Install Python Scripts
 install(PROGRAMS
 
-  # Standard Handover
-  scripts/standard_handover.py
-  scripts/experiments/standard_experiment.py
-
   # Handover Controller
   scripts/handover_controller.py
   scripts/experiments/experiment.py
