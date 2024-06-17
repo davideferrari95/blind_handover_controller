@@ -1,6 +1,12 @@
-# Handover Controller
+# Blind Handover Controller
 
-This package contains a Handover Controller with Admittance and Power and Force Limit Controllers for the UR10e Manipulator in ROS 2.
+This package contains a Blind Handover Controller with the following features:
+
+- Handover Controller with UR e-Series Robot and Robotiq 2F-85 Gripper.
+- Trajectory Planning via Peter Corke Robotics Toolbox and Spline Interpolation.
+- Trajectory Following with Admittance Control using the UR e-Series integrated FT-Sensor.
+- Safety Limit on Desired Velocity computing ISO-TS 15066 SSM (Speed and Separation Monitoring) and PFL (Power and Force Limit).
+- Trained Neural Network for FT-Load Estimation and Automatic Recognition of the Handover Phase for Object Transfer (Gripper Opening).
 
 ## Requirements
 
@@ -28,16 +34,27 @@ This package contains a Handover Controller with Admittance and Power and Force 
 
         pip install -r ../path/to/this/repo/requirements.txt
 
-- Install `invoke`:
-
-        pip install invoke
-
 - Install `vrpn_client_ros2`:
 
         sudo apt install ros-foxy-vrpn
         sudo apt install ros-foxy-vrpn-mocap
 
+- Install `ur_rtde_controller` following the instructions in the [README](https://github.com/ARSControl/ur_rtde_controller/tree/foxy).
+
+        git clone -b foxy https://github.com/ARSControl/ur_rtde_controller.git
+
 ## Build New Robot Kinematic Libraries
+
+The Kinematics Libraries are already available for the following robots:
+
+- CB3 Series (UR3, UR5, UR10)
+- e-Series (UR3e, UR5e, UR10e, UR16e)
+
+If you want to add a new robot, follow these steps:
+
+- Install `invoke`:
+
+        pip install invoke
 
 - Create the Kinematic Source Files in `src/robot_name_kinematic`:
 
