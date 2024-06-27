@@ -1,38 +1,45 @@
 1. State-Of-The-Art:
 
     ✔ State-Of-The-Art Research @done(23-11-06 21:38)
-    ☐ Check Human-Human Force-Load Handover
+    ✔ Check Human-Human Force-Load Handover @done(24-06-27 10:37)
 
     Architecture Idea:
 
         ☐ Handover Request:
 
-            - Alexa Conversation
-            - Mediapipe Gesture Recognition
+            ✘ Alexa Conversation @cancelled(24-06-27 10:37)
+            ✘ Mediapipe Gesture Recognition @cancelled(24-06-27 10:37)
+            ☐ User Input (String / Int Message)
 
         ☐ Object Detection:
 
             ✔ Optitrack Real-Time Tracking @done(24-02-16 16:46)
-            - 6IMPOSE RGBD (RealSense) Camera Object Detection
+            ✘ 6IMPOSE RGBD (RealSense) Camera Object Detection @cancelled(24-06-27 10:38)
+            ☐ 6D Pose Estimation (Object Detection)
 
         ✔ Trajectory Planning / Replanning: @done(24-01-26 12:56)
 
             ✔ Dynamic Planner @done(24-01-26 12:59)
             ✔ Impedance Controller (Safety Index?) @done(24-01-26 12:59)
 
-        ☐ Physical Handover:
+        ✔ Physical Handover: @done(24-06-27 10:38)
 
             ✔ Force Sensor Handover Detection (Gripper Load Modulation) @done(24-02-16 16:46)
+
+        ☐ Hand Estimation:
+
+            ✔ Optitrack Hand Estimation @done(24-06-27 10:38)
             - RGBD Camera Handover Detection
 
-        ☐ Post-Handover:
+        ✘ Post-Handover: @cancelled(24-06-27 10:39)
 
-            - Place (Dynamic Planner)
-            - Usage (Some tool-usage algorithm)
+            ✘ Place (Dynamic Planner) @cancelled(24-06-27 10:39)
+            ✘ Usage (Some tool-usage algorithm) @cancelled(24-06-27 10:39)
 
     Task:
 
-        ☐ H2R and R2H Blind Handover
+        ✘ H2R and R2H Blind Handover @cancelled(24-06-27 10:40)
+        ✔ R2H Blind Handover @done(24-06-27 10:40)
 
         ☐ R2H Paradigm:
 
@@ -41,7 +48,7 @@
            - Pick Object with Best Grasping Pose (Dynamic Planer?)
            - Handover to the User Hand -> Recognize the Force-Load Transition
 
-        ☐ H2R Paradigme:
+        ✘ H2R Paradigme: @cancelled(24-06-27 10:40)
 
             - Ask for Placing this Object (Alexa / Gesture)
             - Load the Network -> Compute Object Position avoiding Hand
@@ -67,8 +74,8 @@
 
     User Study:
 
-        ☐ Open-Loop Handover   -> Robot Leave the Object on the Hand
-        ☐ Closed-Loop Handover -> Robot Leave the Object on the Hand and Wait for the User to Grab it (Negative Payload)
+        ✔ Open-Loop Handover   -> Robot Leave the Object on the Hand @done(24-06-27 10:39)
+        ✔ Closed-Loop Handover -> Robot Leave the Object on the Hand and Wait for the User to Grab it (Negative Payload) @done(24-06-27 10:39)
 
 4. Handover Impedance Controller:
 
@@ -79,32 +86,53 @@
 
         ✔ calcolo la distanza tra uomo e robot @done(24-01-26 12:59)
         ✔ calcolo il valore di vrel max da normativa iso. stabilendo quali siano le moving parts del robot e dell'uomo @done(24-01-26 12:59)
-    
+
         ✔ trasponi velocità (proiezione) del robot lungo la direzione di separazione @done(24-01-26 12:59)
         ✔ trasponi velocità (proiezione) umano ungo la direzione di separazione (direzione distaza uomo robot) @done(24-01-26 12:59)
-    
+
         ✔ calcolo la velocità relativa tra uomo e robot @done(24-01-26 12:59)
         ✔ se la velocità relativa è maggiore di vrel max allora taglio la velocità del robot @done(24-01-26 12:59)
 
-5. Needed Tools:
+5. 6D Pose Integration:
+
+    ✔ Implement 6D Pose in ROS2 @done(24-02-16 16:47)
+
+    Handover Controller Modification:
+
+        ☐ Edit Alexa Object Request -> Use user input string / topic
+        ☐ Hard-Code Photo Position -> Move robot to the position after object request
+        ☐ Implement 6D Pose Object Request (Topic Type) (when robot reached the photo position, ask for the object pose)
+        ☐ Wait for the Object Pose (Topic Type) -> Move the robot to the object pose
+
+        ☐ Replace Optitrack Hand Estimation with 6D Pose Hand Estimation
+
+    Gripper Controller:
+
+        ☐ Implement the new Gripper Controller (Open/Close)
+
+    Hand Estimation:
+
+        ☐ Implement Hand Estimation in ROS2
+
+6. Needed Tools:
 
     Alexa Conversation:
 
-        ☐ Develop Alexa Conversation Custom Skill in ROS2
+        ✔ Develop Alexa Conversation Custom Skill in ROS2 @done(24-06-27 10:39)
 
     Gesture Recognition:
 
-        ☐ Mediapipe Recognition
-        ☐ Measure the Angle of the Arm to understand the Handover Intention Gesture
-        ☐ Cone of Availability in Space
+        ✔ Mediapipe Recognition @done(24-06-27 10:39)
+        ✘ Measure the Angle of the Arm to understand the Handover Intention Gesture @cancelled(24-06-27 10:39)
+        ✘ Cone of Availability in Space @cancelled(24-06-27 10:39)
 
-6. Experiment Scenario:
+7. Experiment Scenario:
 
-    ☐ Plan the Experiment Scenario
-    ☐ Select and Buy the Needed Tools
-    ☐ Setup the Experiment
-    ☐ Test and Evaluation
-    ☐ User Study
+    ✘ Plan the Experiment Scenario @cancelled(24-06-27 10:39)
+    ✘ Select and Buy the Needed Tools @cancelled(24-06-27 10:39)
+    ✘ Setup the Experiment @cancelled(24-06-27 10:39)
+    ✘ Test and Evaluation @cancelled(24-06-27 10:39)
+    ✘ User Study @cancelled(24-06-27 10:39)
 
 ----------------------------------------------------------------------------------------------------------
 
