@@ -25,6 +25,20 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
+# Find Messages Generation Dependencies
+find_package(rosidl_default_generators REQUIRED)
+
+# Set Cusom Services
+set(srv_files
+  "srv/InverseKinematic.srv"
+)
+
+# Generate Messages, Services and Actions
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${srv_files}
+  DEPENDENCIES
+)
+
 # Install Python Modules
 ament_python_install_package(scripts/utils)
 

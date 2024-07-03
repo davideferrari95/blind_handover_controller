@@ -1,0 +1,6 @@
+# Cartesian Pose
+geometry_msgs/Pose cartesian_pose
+---
+# Joint Pose
+float64[] joint_pose
+bool success
