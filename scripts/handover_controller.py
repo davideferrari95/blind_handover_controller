@@ -15,6 +15,7 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Int64, Bool
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, PoseStamped, Wrench, Vector3
+from handover_controller.srv import InverseKinematic
 
 # Import Robot and UR_RTDE Move Classes
 from utils.move_robot import UR_RTDE_Move
@@ -150,6 +151,7 @@ class Handover_Controller(Node):
         # Service Clients and Servers
         self.zero_ft_sensor_client  = self.create_client(Trigger, '/ur_rtde/zeroFTSensor')
         self.stop_admittance_server = self.create_service(Trigger, '/handover/stop', self.stopAdmittanceServerCallback)
+        self.ik_server = self.create_service(InverseKinematic, '/handover/inverse_kinematic', self.ikServerCallback)
 
         # Initialize Admittance Controller
         self.admittance_controller = AdmittanceController(
@@ -273,6 +275,32 @@ class Handover_Controller(Node):
 
         # Response Filling
         res.success = True
+        return res
+
+    def ikServerCallback(self, req:InverseKinematic.Request, res:InverseKinematic.Response):
+
+        """ Stop Admittance Server Callback """
+
+        print(colored('Inverse Kinematic Request\n', 'yellow'), f' [{req.cartesian_pose}]')
+
+        # Compute Inverse Kinematics
+        ik = self.move_robot.IK(req.cartesian_pose, near_pose=self.joint_states.position)
+
+        # If IK is None
+        if ik is None:
+
+            self.get_logger().error('Inverse Kinematic Not Found')
+            res.success = False
+
+        else:
+
+            # Print IK
+            print(colored('Inverse Kinematic Found\n', 'green'), f' [{ik}]')
+
+            # Response Filling
+            res.joint_pose = ik
+            res.success = True
+
         return res
 
     def zeroFTSensor(self):
