@@ -11,11 +11,52 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
 from std_msgs.msg import Bool, String, Float64MultiArray, MultiArrayDimension, Int64
 from ur_rtde_controller.srv import RobotiQGripperControl
-from alexa_conversation.msg import VoiceCommand
+from handover_controller.srv import InverseKinematic
 
-# Import Utils
-from object_list import object_list, get_object_pick_positions, HOME
-TEST = False
+TEST = True
+
+# Take Photo Position (X,Y,Z - R,P,Y)
+TAKE_PHOTO_POSE = [5.120, -0.320, 2.650, 1.650, -31.370, 0.0]
+
+# Home Joint Position
+HOME = [-3.0, -1.62, 1.69, -1.66, -1.50, 0.0]
+
+# Available Objects
+AVAILABLE_OBJECTS = {
+    'tubetto' : 0,
+    'ugello'  : 1,
+    'dado'    : 2,
+    'vite_65' : 3,
+    'chiave'  : 4,
+    # "tubetto_m1200.ply": 0,
+    # "ugello_l80_99.ply": 1,
+    # "dado_m5.ply": 2,
+    # "vite_65.ply": 3,
+    # "vite_20.ply": 4,
+    # "chiave_brugola_6.ply": 5,
+    # "deviatore_boccaglio.ply": 6,
+    # "chiave2.ply": 7,
+    # "chiave_fissa_8_10_2.ply": 8,
+    # "fascetta_68_73_colorized_2.ply": 9
+}
+
+import numpy as np
+from scipy.spatial.transform import Rotation
+
+def array2pose(self, array:np.ndarray) -> Pose:
+
+    """ Convert NumPy Array to Pose """
+
+    # Type Assertion
+    assert type(array) is np.ndarray, f"Array must be a NumPy Array | {type(array)} given | {array}"
+    assert len(array) == 6, f"Array Length must be 6 | {len(array)} given | {array}"
+
+    # Create Pose
+    pose = Pose()
+    pose.position.x, pose.position.y, pose.position.z = array[:3]
+    pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = Rotation.from_rotvec(array[3:]).as_quat()
+
+    return pose
 
 class Experiment(Node):
 
@@ -52,21 +93,23 @@ class Experiment(Node):
         # ROS2 Publisher Initialization
         self.joint_goal_pub      = self.create_publisher(Float64MultiArray, '/handover/joint_goal', 1)
         self.cartesian_goal_pub  = self.create_publisher(Pose, '/handover/cartesian_goal', 1)
-        self.alexa_tts_pub       = self.create_publisher(String, '/alexa/tts', 1)
         self.trajectory_time_pub = self.create_publisher(Int64, '/handover/set_trajectory_time', 1)
         self.track_hand_pub      = self.create_publisher(Bool, '/handover/track_hand', 1)
+        self.get_object_pose_pub      = self.create_publisher(String, '/6D_pose/request_object', 1)
 
         # ROS2 Service Clients Initialization
         self.stop_admittance_client = self.create_client(Trigger, '/handover/stop')
         self.zero_ft_sensor_client  = self.create_client(Trigger, '/ur_rtde/zeroFTSensor')
         self.robotiq_gripper_client = self.create_client(RobotiQGripperControl, '/ur_rtde/robotiq_gripper/command')
+        self.inverse_kinematic_client = self.create_client(InverseKinematic, '/handover/inverse_kinematic')
 
         # ROS2 Subscriber Initialization
-        self.alexa_subscriber           = self.create_subscription(VoiceCommand, '/alexa_conversation/voice_command', self.alexaCallback, 1)
+        self.get_object_subscriber      = self.create_subscription(String, '/handover/get_object', self.objectCallback, 1)
         self.joint_state_subscriber     = self.create_subscription(JointState, '/joint_states', self.jointStatesCallback, 1)
         self.ft_sensor_subscriber       = self.create_subscription(Wrench,'/ur_rtde/ft_sensor', self.FTSensorCallback, 1)
         self.network_output_subscriber  = self.create_subscription(Bool, '/ft_network/open_gripper', self.networkCallback, 1)
         self.human_hand_pose_subscriber = self.create_subscription(Pose, '/handover/human_hand', self.humanHandPoseCallback, 1)
+        self.wait_object_pose_subscriber    = self.create_subscription(Pose, '/6D_pose/object_pose', self.getObjectPoseCallback, 1)
 
         time.sleep(1)
 
@@ -93,13 +136,16 @@ class Experiment(Node):
         # Get Network Output
         if data.data: self.open_gripper = True
 
-    def alexaCallback(self, data:VoiceCommand):
+    def objectCallback(self, data:String):
 
-        """ Alexa Callback """
+        """ Object Callback """
 
-        # Get Alexa Command
-        if data.command is VoiceCommand.GET_OBJECT: self.start_handover = True
-        self.requested_object = data.object if data.object != '' else 'pliers'
+        # Get Object Command
+        if data.data in AVAILABLE_OBJECTS:
+
+            # Set Handover Flag and Requested Object
+            self.start_handover = True
+            self.requested_object = data.data
 
     def humanHandPoseCallback(self, data:Pose):
 
@@ -107,14 +153,6 @@ class Experiment(Node):
 
         # Get Human Hand Pose - Handover Goal
         self.handover_goal = data
-
-    def publishAlexaTTS(self, msg:str) -> None:
-
-        """ Publish Alexa TTS Message """
-
-        # Publish Event Message
-        self.alexa_tts_pub.publish(String(data=msg))
-        self.get_logger().warn(f'Alexa TTS: {msg}')
 
     def publishJointGoal(self, joint_goal:List[float]):
 
@@ -175,6 +213,24 @@ class Experiment(Node):
         future = self.robotiq_gripper_client.call_async(request)
         rclpy.spin_until_future_complete(self, future)
         return future.result()
+
+    def getIK(self, cartesian_pose:Pose):
+
+        """ Call IK Service """
+
+        # Wait For Service
+        if self.inverse_kinematic_client.wait_for_service(timeout_sec=1.0):
+
+            # Fill Request
+            request = InverseKinematic.Request()
+            request.cartesian_pose = cartesian_pose
+
+            # Call Service - Asynchronous
+            future = self.inverse_kinematic_client.call_async(request)
+            rclpy.spin_until_future_complete(self, future)
+            return future.result()
+
+        else: self.get_logger().error('IK Service Not Available'); return None
 
     def goal_reached(self, joint_goal:List[float]):
         
@@ -253,22 +309,62 @@ class Experiment(Node):
         # Network Opened Gripper
         self.get_logger().info('FT-Load Threshold Opened Gripper\n')
 
+    def getObjectPosition(self, object_name:str):
+
+        """ Ask Object Position to 6D Pose Estimation Node """
+
+        # Request Object Position
+        self.object_pose_received = False
+        self.get_object_pose_pub.publish(String(data=object_name))
+
+        # Wait for Object Position
+        while not self.object_pose_received:
+
+            # Spin Once
+            rclpy.spin_once(self, timeout_sec=0.1/float(self.ros_rate))
+
+            # Log Throttle
+            self.get_logger().info(f'Getting {object_name} Position', throttle_duration_sec=5.0, skip_first=False)
+
+        # Get Object Position
+        pick_position, over_position = self.requested_object_position, self.requested_object_position
+
+        # Update Object Over Position
+        over_position.position.z += 0.10
+
+        return over_position, pick_position
+
+    def getObjectPoseCallback(self, data:Pose):
+
+        """ Get Object Pose from 6D Pose Callback """
+
+        # Get Object Pose
+        self.requested_object_position = data
+
+        # Set Object Pose Received Flag
+        self.object_pose_received = True
+
     def handover(self, object_name:str):
 
         """ Handover """
 
-        assert object_name in [obj.name for obj in object_list], f'Invalid Object Name: {object_name}'
+        assert object_name in AVAILABLE_OBJECTS, f'Invalid Object Name: {object_name}'
 
         # Reset FT-Sensor
         self.zeroFTSensor()
-        self.publishAlexaTTS(f"Sure, I'll get the {self.requested_object} for you.")
+        self.get_logger().warn(f"Sure, I'll get the {self.requested_object} for you.")
 
-        # Get Object Goal
-        object_over, object_pick = get_object_pick_positions(object_name)
+        # Go to Photo Position
+        photo_joint_pose = self.getIK(array2pose(TAKE_PHOTO_POSE))
+        if photo_joint_pose is not None: self.move_and_wait(photo_joint_pose, 'Photo Position', 5.0, False)
+
+        # Get Object Pick Positions
+        object_over_pose, object_pick_pose = self.getObjectPosition(object_name)
+        object_over, object_pick = self.getIK(object_over_pose), self.getIK(object_pick_pose)
 
         # Go to Object Goal
-        self.move_and_wait(object_over, 'Object Over', 5.0, False)
-        self.move_and_wait(object_pick, 'Object Pick', 5.0, False)
+        if object_over is not None: self.move_and_wait(object_over, 'Object Over', 5.0, False)
+        if object_pick is not None: self.move_and_wait(object_pick, 'Object Pick', 5.0, False)
         time.sleep(1)
 
         # Close Gripper
@@ -286,7 +382,6 @@ class Experiment(Node):
         self.handover_goal.orientation.z = 0.02
         self.handover_goal.orientation.w = 0.06
 
-
         if TEST:
 
             # Fixed Handover Goal - For Testing
@@ -299,8 +394,8 @@ class Experiment(Node):
             self.move_cartesian(self.handover_goal)
             time.sleep(3)
 
-        # Publish Alexa TTS
-        self.publishAlexaTTS(f"I'm handing you the {object_name}")
+        # Log Handover
+        self.get_logger().warn(f"I'm handing you the {object_name}")
 
         # Publish Hand Tracking
         if not TEST: self.track_hand_pub.publish(Bool(data=True))
@@ -319,7 +414,7 @@ class Experiment(Node):
 
         # Open Gripper and Go to Home
         self.RobotiQGripperControl(position=RobotiQGripperControl.Request.GRIPPER_OPENED)
-        if not TEST: self.move_and_wait(HOME, 'HOME', 5.0, False)
+        self.move_and_wait(HOME, 'HOME', 5.0, False)
         time.sleep(1)
 
         # Wait for Start Handover
