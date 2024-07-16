@@ -36,11 +36,11 @@ set(srv_files
 # Generate Messages, Services and Actions
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${srv_files}
-  DEPENDENCIES
+  DEPENDENCIES geometry_msgs
 )
 
 # Install Python Modules
-ament_python_install_package(scripts/utils)
+ament_python_install_package(scripts)
 
 # Install Python Scripts
 install(PROGRAMS
