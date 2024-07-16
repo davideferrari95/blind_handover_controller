@@ -93,7 +93,7 @@ If you want to add a new robot, follow these steps:
 
 - Launch `handover_controller`:
 
-        ros2 launch handover_controller handover_controller.launch.py
+        ros2 launch blind_handover handover_controller.launch.py
 
 #### Experiments
 
@@ -109,21 +109,21 @@ If you want to add a new robot, follow these steps:
 - Launch main `experiment`:
 
         ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
-        ros2 launch handover_controller handover_controller.launch.py 
-        ros2 launch handover_controller experiment.launch.py
+        ros2 launch blind_handover handover_controller.launch.py 
+        ros2 launch blind_handover experiment.launch.py
 
 - Launch comparative `standard_experiment`:
 
         ros2 launch vrpn_mocap client.launch.yaml server:=192.168.2.50
-        ros2 launch handover_controller handover_controller.launch.py use_admittance:=False
-        ros2 launch handover_controller experiment.launch.py use_network:=False
+        ros2 launch blind_handover handover_controller.launch.py use_admittance:=False
+        ros2 launch blind_handover experiment.launch.py use_network:=False
 
 #### Training FT-Load Neural Network
 
 - Launch `ft_load_experiment` to collect data from the FT Sensor for the Dataset:
 
-        ros2 launch handover_controller handover_controller.launch.py
-        ros2 launch handover_controller ft_experiment.launch.py
+        ros2 launch blind_handover handover_controller.launch.py
+        ros2 launch blind_handover ft_experiment.launch.py
 
 - Train the Neural Network with the collected data:
 

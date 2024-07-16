@@ -13,7 +13,7 @@ def create_experiment_node():
 
     # Experiment Node
     experiment = Node(
-        package='handover_controller', executable='experiment.py',
+        package='blind_handover', executable='experiment.py',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
         parameters=[experiment_parameters],
     )
@@ -27,7 +27,7 @@ def create_network_node():
 
     # Network Node
     network = Node(
-        package='handover_controller', executable='ft_network.py',
+        package='blind_handover', executable='ft_network.py',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
         condition=IfCondition(use_network)
     )

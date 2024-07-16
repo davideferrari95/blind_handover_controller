@@ -11,7 +11,7 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, Wrench
 from std_msgs.msg import Bool, String, Float64MultiArray, MultiArrayDimension, Int64
 from ur_rtde_controller.srv import RobotiQGripperControl
-from handover_controller.srv import InverseKinematic
+from blind_handover.srv import InverseKinematic
 
 TEST = True
 

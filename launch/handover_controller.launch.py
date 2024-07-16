@@ -21,7 +21,7 @@ def create_handover_controller_node(context):
     }
 
     # Config File Path
-    config = os.path.join(get_package_share_directory('handover_controller'), 'config','config.yaml')
+    config = os.path.join(get_package_share_directory('blind_handover'), 'config','config.yaml')
 
     # Robot Config File Path
     robot = LaunchConfiguration('robot').perform(context)
@@ -30,7 +30,7 @@ def create_handover_controller_node(context):
 
     # Python Node + Parameters + YAML Config File
     handover_controller = Node(
-        package='handover_controller', executable='handover_controller.py',
+        package='blind_handover', executable='handover_controller.py',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
         parameters=[handover_controller_parameters, config, robot_config],
     )

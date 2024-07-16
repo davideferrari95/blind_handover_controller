@@ -7,7 +7,7 @@ def create_ft_load_node():
 
     # FT Sensor Experiment Node
     ft_load_experiment = Node(
-        package='handover_controller', executable='ft_load_experiment.py',
+        package='blind_handover', executable='ft_load_experiment.py',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
     )
 
@@ -22,7 +22,7 @@ def create_save_data_node():
 
     # Save Data Node
     save_data = Node(
-        package='handover_controller', executable='save_data.py',
+        package='blind_handover', executable='save_data.py',
         output='screen', emulate_tty=True, output_format='{line}', arguments=[('__log_level:=info')],
         parameters=[save_data_parameters],
     )

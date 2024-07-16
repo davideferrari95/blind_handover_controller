@@ -3,7 +3,7 @@
 
 <package format="3">
 
-  <name>handover_controller</name>
+  <name>blind_handover</name>
   <version>0.0.0</version>
   <description>ROS2 Handover Controller</description>
 

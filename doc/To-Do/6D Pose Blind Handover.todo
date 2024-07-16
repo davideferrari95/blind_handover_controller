@@ -99,10 +99,10 @@
 
     Handover Controller Modification:
 
-        ☐ Edit Alexa Object Request -> Use user input string / topic
-        ☐ Hard-Code Photo Position -> Move robot to the position after object request
-        ☐ Implement 6D Pose Object Request (Topic Type) (when robot reached the photo position, ask for the object pose)
-        ☐ Wait for the Object Pose (Topic Type) -> Move the robot to the object pose
+        ✔ Edit Alexa Object Request -> Use user input string / topic @done(24-07-03 18:36)
+        ✔ Hard-Code Photo Position -> Move robot to the position after object request @done(24-07-03 18:36)
+        ✔ Implement 6D Pose Object Request (Topic Type) (when robot reached the photo position, ask for the object pose) @done(24-07-03 18:36)
+        ✔ Wait for the Object Pose (Topic Type) -> Move the robot to the object pose @done(24-07-03 18:37)
 
         ☐ Replace Optitrack Hand Estimation with 6D Pose Hand Estimation
 

@@ -15,7 +15,7 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Int64, Bool
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, PoseStamped, Wrench, Vector3
-from handover_controller.srv import InverseKinematic
+from blind_handover.srv import InverseKinematic
 
 # Import Robot and UR_RTDE Move Classes
 from utils.move_robot import UR_RTDE_Move

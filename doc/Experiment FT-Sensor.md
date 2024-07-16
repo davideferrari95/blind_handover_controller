@@ -9,15 +9,15 @@
 
 - Launch the handover_controller:
 
-        ros2 launch handover_controller handover_controller.launch.py
+        ros2 launch blind_handover handover_controller.launch.py
 
 - Launch the Experiment nodes:
 
-        ros2 launch handover_controller ft_experiment.launch.py
+        ros2 launch blind_handover ft_experiment.launch.py
 
 ## Data Collection
 
-- The data is saved in the `data` folder in the `handover_controller` package.
+- The data is saved in the `data` folder in the `blind_handover` package.
 - The data is saved in two `.csv` file with the following data:
 
         ft_sensor_data.csv -> fx,fy,fz,tx,ty,tz
